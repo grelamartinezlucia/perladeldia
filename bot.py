@@ -187,10 +187,13 @@ def run_health_server():
 # Mantener el bot corriendo
 def main():
     print("Bot iniciado...")
-    # Iniciar servidor HTTP para Render
+    # Iniciar servidor HTTP para Render PRIMERO
     threading.Thread(target=run_health_server, daemon=True).start()
+    time.sleep(2)  # Dar tiempo al servidor HTTP para iniciar
+    print("Health server listo")
     # Iniciar el bot
     threading.Thread(target=bot.infinity_polling, daemon=True).start()
+    print("Bot polling iniciado")
     
     # Ejecutar el schedule
     while True:
