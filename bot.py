@@ -17,6 +17,7 @@ CHAT_ID = os.environ.get('CHAT_ID')
 
 # Archivo para guardar el estado de elementos usados
 ESTADO_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'estado_usado.json')
+SUGERENCIAS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sugerencias.json')
 
 def cargar_estado():
     """Carga el estado de elementos ya usados"""
@@ -29,6 +30,24 @@ def guardar_estado(estado):
     """Guarda el estado de elementos usados"""
     with open(ESTADO_FILE, 'w', encoding='utf-8') as f:
         json.dump(estado, f, ensure_ascii=False, indent=2)
+
+def cargar_sugerencias():
+    """Carga las sugerencias guardadas"""
+    if os.path.exists(SUGERENCIAS_FILE):
+        with open(SUGERENCIAS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
+
+def guardar_sugerencia(usuario, texto):
+    """Guarda una nueva sugerencia"""
+    sugerencias = cargar_sugerencias()
+    sugerencias.append({
+        'usuario': usuario,
+        'texto': texto,
+        'fecha': datetime.now().strftime("%d/%m/%Y %H:%M")
+    })
+    with open(SUGERENCIAS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(sugerencias, f, ensure_ascii=False, indent=2)
 
 def obtener_sin_repetir(lista, usados_key):
     """Obtiene un elemento aleatorio sin repetir hasta agotar la lista"""
@@ -90,14 +109,17 @@ REFRANES = [
 
 FRASES_AMIGOS = [
     "Sé que mi destino está escrito - Mi abuela",
-    "Llego tarde - Maru Espasandín (cada vez que quedas con ella)",
+    "'Llego tarde' - Maru Espasandín (cada vez que quedas con ella)",
     "Estaba tendiendo la ropa - Tania Eiros cada vez que hizo el amor",
     "Follo, fumo y como cerdo, soy un partidazo para cualquier musulmán - Cris Flores Senegal 2025",
     "Si vienes te enseño mi pimiento - Iván V.S.",
+    "Somos escarabajos peloteros creando montañas de estiércol - Raquel F.S.",
     "Cerra sesión e volve a entrar - Manuel Reyes",
     "Hoy vi un video de un trio, de cómo gestionaban sus gastos y se ahorran pasta - Alicia González",
     "Esto es el chiringuito de peine - Raquel F.S.",
-
+    "'¡Furcia!' (mientras aplasta una hormiga) - Loreto M.S. ",
+    "Al final en este  país la opción más realista de tener una vivienda es ser okupa- Lucía Fisio",
+    "Pasarlo bien, venga ciao - Carliños",
 ]
 
 def mensaje_diario():
@@ -151,6 +173,7 @@ Soy tu dealer diario de sabiduría random y frasecitas que nadie pidió pero tod
 
 *Comandos disponibles:*
 /ahora - Si no puedes esperar a mañana, ¡perla instantánea!
+/sugerir [frase] - Sugiere una frase mítica para añadir
 
 Prepárate para la cultura... o algo parecido 🤷‍♀️
 """
@@ -167,6 +190,29 @@ def obtener_chat_id(message):
 @bot.message_handler(commands=['ahora'])
 def send_now(message):
     bot.send_message(message.chat.id, mensaje_diario(), parse_mode='Markdown')
+
+@bot.message_handler(commands=['sugerir'])
+def sugerir_frase(message):
+    texto = message.text.replace('/sugerir', '').strip()
+    if not texto:
+        bot.reply_to(message, "✏️ Usa: /sugerir Tu frase mítica - Autor")
+        return
+    
+    usuario = message.from_user.first_name or "Anónimo"
+    guardar_sugerencia(usuario, texto)
+    bot.reply_to(message, f"✅ ¡Gracias {usuario}! Tu sugerencia ha sido guardada para revisión.")
+
+@bot.message_handler(commands=['versugerencias'])
+def ver_sugerencias(message):
+    sugerencias = cargar_sugerencias()
+    if not sugerencias:
+        bot.reply_to(message, "📭 No hay sugerencias pendientes.")
+        return
+    
+    texto = "📬 *Sugerencias pendientes:*\n\n"
+    for i, s in enumerate(sugerencias[-10:], 1):  # Últimas 10
+        texto += f"{i}. _{s['texto']}_\n   👤 {s['usuario']} - {s['fecha']}\n\n"
+    bot.reply_to(message, texto, parse_mode='Markdown')
 
 # Servidor HTTP simple para Render
 class HealthHandler(BaseHTTPRequestHandler):
