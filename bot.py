@@ -7,11 +7,11 @@ import json
 import os
 
 # Tu token del BotFather
-TOKEN = '8525593528:AAHpwIQRaWoCMDzjinLwFB6-aIdOamS32Ds'
+TOKEN = os.environ.get('TOKEN')
 bot = telebot.TeleBot(TOKEN)
 
 # Tu ID de chat
-CHAT_ID = '573610790'
+CHAT_ID = os.environ.get('CHAT_ID')
 
 # Archivo para guardar el estado de elementos usados
 ESTADO_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'estado_usado.json')
