@@ -5,6 +5,8 @@ import time
 import random
 import json
 import os
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
 
 # Tu token del BotFather
 TOKEN = os.environ.get('TOKEN')
@@ -166,11 +168,28 @@ def obtener_chat_id(message):
 def send_now(message):
     bot.send_message(message.chat.id, mensaje_diario(), parse_mode='Markdown')
 
+# Servidor HTTP simple para Render
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b'Bot running')
+    def log_message(self, format, *args):
+        pass  # Silenciar logs HTTP
+
+def run_health_server():
+    port = int(os.environ.get('PORT', 10000))
+    server = HTTPServer(('0.0.0.0', port), HealthHandler)
+    print(f"Health server en puerto {port}")
+    server.serve_forever()
+
 # Mantener el bot corriendo
 def main():
     print("Bot iniciado...")
+    # Iniciar servidor HTTP para Render
+    threading.Thread(target=run_health_server, daemon=True).start()
     # Iniciar el bot
-    import threading
     threading.Thread(target=bot.infinity_polling, daemon=True).start()
     
     # Ejecutar el schedule
