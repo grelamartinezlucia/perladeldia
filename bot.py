@@ -215,49 +215,68 @@ def obtener_efemeride():
     try:
         hoy = datetime.now()
         url = f"https://es.wikipedia.org/api/rest_v1/feed/onthisday/events/{hoy.month}/{hoy.day}"
-        response = requests.get(url, timeout=5)
+        response = requests.get(url, timeout=10, headers={'User-Agent': 'PerlaBotTelegram/1.0'})
         if response.status_code == 200:
             data = response.json()
             eventos = data.get('events', [])
             if eventos:
-                evento = random.choice(eventos[:10])  # De los 10 más relevantes
+                evento = random.choice(eventos[:10])
                 return f"{evento.get('year', '')}: {evento.get('text', 'Sin datos')}"
-    except:
-        pass
+        print(f"Wikipedia API status: {response.status_code}")
+    except Exception as e:
+        print(f"Error obteniendo efeméride: {e}")
     return None
+
+DIAS_INTERNACIONALES = {
+    # Enero
+    (1, 1): "Día de la Paz Mundial",
+    (1, 29): "Día Internacional de la Privacidad de Datos",
+    (1, 30): "Día de la No Violencia y la Paz (y del Croissant 🥐)",
+    (1, 31): "Día Internacional de la Cebra",
+    # Febrero
+    (2, 1): "Día Mundial del Galgo",
+    (2, 2): "Día de la Marmota y Día de los Humedales",
+    (2, 3): "Día Internacional del Abogado",
+    (2, 4): "Día Mundial contra el Cáncer",
+    (2, 5): "Día de Internet Segura (Safer Internet Day)",
+    (2, 6): "Día Internacional de Tolerancia Cero con la Mutilación Genital Femenina",
+    (2, 7): "Día de Enviar una Tarjeta a un Amigo",
+    (2, 8): "Día Internacional de la Epilepsia",
+    (2, 9): "Día Mundial de la Pizza 🍕",
+    (2, 10): "Día de las Legumbres",
+    (2, 11): "Día Internacional de la Mujer y la Niña en la Ciencia",
+    (2, 12): "Día de Darwin",
+    (2, 13): "Día Mundial de la Radio",
+    (2, 14): "Día de San Valentín 💘",
+    (2, 15): "Día Internacional del Cáncer Infantil",
+    (2, 16): "Día del Pistacho",
+    (2, 17): "Día del Gato 🐱",
+    (2, 18): "Día Internacional del Síndrome de Asperger",
+    (2, 19): "Día del Ejército Mexicano",
+    (2, 20): "Día Mundial de la Justicia Social",
+    (2, 21): "Día Internacional de la Lengua Materna",
+    (2, 22): "Día de la Igualdad Salarial",
+    (2, 23): "Día del Rotary",
+    (2, 24): "Día de la Bandera de México",
+    (2, 25): "Día del Implante Coclear",
+    (2, 26): "Día del Pistacho (EEUU)",
+    (2, 27): "Día Mundial del Oso Polar 🐻‍❄️",
+    (2, 28): "Día de las Enfermedades Raras",
+    # Marzo (primeros días)
+    (3, 1): "Día de la Cero Discriminación",
+    (3, 8): "Día Internacional de la Mujer",
+    # Otros importantes
+    (4, 22): "Día de la Tierra 🌍",
+    (5, 1): "Día del Trabajo",
+    (6, 5): "Día del Medio Ambiente",
+    (10, 31): "Halloween 🎃",
+    (12, 25): "Navidad 🎄",
+}
 
 def obtener_dia_internacional():
     """Obtiene el día internacional de hoy"""
-    try:
-        hoy = datetime.now()
-        url = f"https://www.diasinternacionales.com/api/v1/days?month={hoy.month}&day={hoy.day}"
-        response = requests.get(url, timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            if data and len(data) > 0:
-                return data[0].get('name', None)
-    except:
-        pass
-    # Fallback: días internacionales más conocidos
-    dias_conocidos = {
-        (1, 1): "Día de la Paz Mundial",
-        (1, 30): "Día internacional de la no violencia y paz (aunque también es el día del Croissant)",
-        (1, 31): "Día internacional de la cebra",
-        (2, 1): "Día mundial del Galgo",
-        (2, 2): "Día de la Marmota",
-        (2, 3): "Día internacional del abogado",
-        (2, 4): "Día contra el cáncer",
-        (2, 9): "Día mundial de la pizza",
-        (2, 10): "Día internacional de internet seguro",
-        (2, 14): "Día de San Valentín",
-        (3, 8): "Día Internacional de la Mujer",
-        (4, 22): "Día de la Tierra",
-        (5, 1): "Día del Trabajo",
-        (6, 5): "Día del Medio Ambiente",
-        (10, 31): "Halloween",
-        (12, 25): "Navidad",
-    }
-    return dias_conocidos.get((hoy.month, hoy.day), None)
+    hoy = datetime.now()
+    return DIAS_INTERNACIONALES.get((hoy.month, hoy.day), None)
 
 def mensaje_diario():
     """Genera el mensaje del día"""
@@ -409,18 +428,18 @@ def enviar_desafio(message):
     """Envía un desafío de vocabulario"""
     palabra, opciones, indice_correcto = generar_quiz()
     
-    texto = f"🧠 *DESAFÍO: ¿Qué significa...*\n\n📝 *{palabra}*?"
-    
-    markup = types.InlineKeyboardMarkup()
     letras = ['A', 'B', 'C', 'D']
+    texto = f"🧠 *DESAFÍO: ¿Qué significa...*\n\n📝 *{palabra}*?\n"
+    
     for i, opcion in enumerate(opciones):
-        # Acortar opción si es muy larga
-        opcion_corta = opcion[:50] + "..." if len(opcion) > 50 else opcion
-        btn = types.InlineKeyboardButton(
-            f"{letras[i]}) {opcion_corta}", 
-            callback_data=f"desafio_{i}_{indice_correcto}"
-        )
-        markup.add(btn)
+        texto += f"\n{letras[i]}) {opcion}"
+    
+    markup = types.InlineKeyboardMarkup(row_width=4)
+    botones = [
+        types.InlineKeyboardButton(letra, callback_data=f"desafio_{i}_{indice_correcto}")
+        for i, letra in enumerate(letras)
+    ]
+    markup.add(*botones)
     
     bot.send_message(message.chat.id, texto, parse_mode='Markdown', reply_markup=markup)
 
@@ -481,14 +500,26 @@ def run_health_server():
 
 # Mantener el bot corriendo
 def main():
-    print("Bot iniciado...")
+    print("=" * 50)
+    print("🚀 INICIANDO BOT...")
+    print("=" * 50)
+    
     # Iniciar servidor HTTP para Render PRIMERO
     threading.Thread(target=run_health_server, daemon=True).start()
-    time.sleep(2)  # Dar tiempo al servidor HTTP para iniciar
-    print("Health server listo")
+    time.sleep(2)
+    print("✅ Health server listo")
+    
+    # Verificar conexión con Telegram
+    try:
+        bot_info = bot.get_me()
+        print(f"✅ Conectado a Telegram como: @{bot_info.username}")
+    except Exception as e:
+        print(f"❌ Error conectando a Telegram: {e}")
+    
     # Iniciar el bot
+    print("🔄 Iniciando polling...")
     threading.Thread(target=bot.infinity_polling, daemon=True).start()
-    print("Bot polling iniciado")
+    print("✅ Bot polling iniciado - ¡TODO OK!")
     
     # Ejecutar el schedule
     while True:
