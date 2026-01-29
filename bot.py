@@ -6,6 +6,7 @@ import time
 import random
 import json
 import os
+import requests
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 
@@ -20,6 +21,7 @@ CHAT_ID = os.environ.get('CHAT_ID')
 ESTADO_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'estado_usado.json')
 SUGERENCIAS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sugerencias.json')
 VOTOS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'votos.json')
+PUNTOS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'puntos.json')
 
 def cargar_estado():
     """Carga el estado de elementos ya usados"""
@@ -87,6 +89,53 @@ def obtener_conteo_votos(fecha):
     if fecha not in votos:
         return 0, 0
     return len(votos[fecha]['up']), len(votos[fecha]['down'])
+
+def cargar_puntos():
+    """Carga las puntuaciones del quiz"""
+    if os.path.exists(PUNTOS_FILE):
+        with open(PUNTOS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+def guardar_puntos(puntos):
+    """Guarda las puntuaciones"""
+    with open(PUNTOS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(puntos, f, ensure_ascii=False, indent=2)
+
+def sumar_punto(user_id, nombre):
+    """Suma un punto al usuario"""
+    puntos = cargar_puntos()
+    user_key = str(user_id)
+    if user_key not in puntos:
+        puntos[user_key] = {'nombre': nombre, 'puntos': 0}
+    puntos[user_key]['puntos'] += 1
+    puntos[user_key]['nombre'] = nombre
+    guardar_puntos(puntos)
+    return puntos[user_key]['puntos']
+
+def parsear_palabra(texto):
+    """Separa 'Palabra: definición' en (palabra, definición)"""
+    if ':' in texto:
+        partes = texto.split(':', 1)
+        return partes[0].strip(), partes[1].strip()
+    return texto, ""
+
+def generar_quiz():
+    """Genera un quiz con una palabra y 4 opciones"""
+    palabra_completa = random.choice(PALABRAS_CURIOSAS)
+    palabra, definicion_correcta = parsear_palabra(palabra_completa)
+    
+    # Obtener 3 definiciones incorrectas
+    otras = [p for p in PALABRAS_CURIOSAS if p != palabra_completa]
+    incorrectas = random.sample(otras, min(3, len(otras)))
+    opciones_incorrectas = [parsear_palabra(p)[1] for p in incorrectas]
+    
+    # Mezclar opciones
+    todas_opciones = [definicion_correcta] + opciones_incorrectas
+    random.shuffle(todas_opciones)
+    indice_correcto = todas_opciones.index(definicion_correcta)
+    
+    return palabra, todas_opciones, indice_correcto
 
 def obtener_sin_repetir(lista, usados_key):
     """Obtiene un elemento aleatorio sin repetir hasta agotar la lista"""
@@ -161,14 +210,65 @@ FRASES_AMIGOS = [
     "Pasarlo bien, venga ciao - Carliños",
 ]
 
+def obtener_efemeride():
+    """Obtiene una efeméride del día desde Wikipedia API"""
+    try:
+        hoy = datetime.now()
+        url = f"https://es.wikipedia.org/api/rest_v1/feed/onthisday/events/{hoy.month}/{hoy.day}"
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            eventos = data.get('events', [])
+            if eventos:
+                evento = random.choice(eventos[:10])  # De los 10 más relevantes
+                return f"{evento.get('year', '')}: {evento.get('text', 'Sin datos')}"
+    except:
+        pass
+    return None
+
+def obtener_dia_internacional():
+    """Obtiene el día internacional de hoy"""
+    try:
+        hoy = datetime.now()
+        url = f"https://www.diasinternacionales.com/api/v1/days?month={hoy.month}&day={hoy.day}"
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            if data and len(data) > 0:
+                return data[0].get('name', None)
+    except:
+        pass
+    # Fallback: días internacionales más conocidos
+    dias_conocidos = {
+        (1, 1): "Día de la Paz Mundial",
+        (1, 30): "Día internacional de la no violencia y paz (aunque también es el día del Croissant)",
+        (1, 31): "Día internacional de la cebra",
+        (2, 1): "Día mundial del Galgo",
+        (2, 2): "Día de la Marmota",
+        (2, 3): "Día internacional del abogado",
+        (2, 4): "Día contra el cáncer",
+        (2, 9): "Día mundial de la pizza",
+        (2, 10): "Día internacional de internet seguro",
+        (2, 14): "Día de San Valentín",
+        (3, 8): "Día Internacional de la Mujer",
+        (4, 22): "Día de la Tierra",
+        (5, 1): "Día del Trabajo",
+        (6, 5): "Día del Medio Ambiente",
+        (10, 31): "Halloween",
+        (12, 25): "Navidad",
+    }
+    return dias_conocidos.get((hoy.month, hoy.day), None)
+
 def mensaje_diario():
     """Genera el mensaje del día"""
     palabra = obtener_sin_repetir(PALABRAS_CURIOSAS, 'palabras')
     refran = obtener_sin_repetir(REFRANES, 'refranes')
     frase = obtener_sin_repetir(FRASES_AMIGOS, 'frases')
+    efemeride = obtener_efemeride()
+    dia_internacional = obtener_dia_internacional()
     
     mensaje = f"""
- *PERLA DEL DÍA* 
+ *PERLA DEL DÍA*
 
 📚 *Palabra curiosa:*
 {palabra}
@@ -178,9 +278,16 @@ def mensaje_diario():
 
 😂 *Frase mítica:*
 {frase}
-
-_{datetime.now().strftime("%d/%m/%Y")}_
 """
+    
+    if dia_internacional:
+        mensaje += f"\n🌐 *Hoy se celebra:*\n{dia_internacional}\n"
+    
+    if efemeride:
+        mensaje += f"\n📅 *Tal día como hoy:*\n{efemeride}\n"
+    
+    mensaje += f"\n_{datetime.now().strftime('%d/%m/%Y')}_"
+    
     return mensaje
 
 def crear_botones_voto(fecha):
@@ -223,6 +330,8 @@ Soy tu dealer diario de sabiduría random y frasecitas que nadie pidió pero tod
 
 *Comandos disponibles:*
 /ahora - Si no puedes esperar a mañana, ¡perla instantánea!
+/desafio - ¡Pon a prueba tu vocabulario!
+/ranking - Top 10 del desafío
 /sugerir [frase] - Sugiere una frase mítica para añadir
 
 Prepárate para la cultura... o algo parecido 🤷‍♀️
@@ -293,6 +402,65 @@ def ver_sugerencias(message):
     texto = "📬 *Sugerencias pendientes:*\n\n"
     for i, s in enumerate(sugerencias[-10:], 1):  # Últimas 10
         texto += f"{i}. _{s['texto']}_\n   👤 {s['usuario']} - {s['fecha']}\n\n"
+    bot.reply_to(message, texto, parse_mode='Markdown')
+
+@bot.message_handler(commands=['desafio'])
+def enviar_desafio(message):
+    """Envía un desafío de vocabulario"""
+    palabra, opciones, indice_correcto = generar_quiz()
+    
+    texto = f"🧠 *DESAFÍO: ¿Qué significa...*\n\n📝 *{palabra}*?"
+    
+    markup = types.InlineKeyboardMarkup()
+    letras = ['A', 'B', 'C', 'D']
+    for i, opcion in enumerate(opciones):
+        # Acortar opción si es muy larga
+        opcion_corta = opcion[:50] + "..." if len(opcion) > 50 else opcion
+        btn = types.InlineKeyboardButton(
+            f"{letras[i]}) {opcion_corta}", 
+            callback_data=f"desafio_{i}_{indice_correcto}"
+        )
+        markup.add(btn)
+    
+    bot.send_message(message.chat.id, texto, parse_mode='Markdown', reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('desafio_'))
+def handle_desafio(call):
+    """Maneja las respuestas del desafío"""
+    partes = call.data.split('_')
+    respuesta = int(partes[1])
+    correcta = int(partes[2])
+    
+    if respuesta == correcta:
+        nombre = call.from_user.first_name or "Anónimo"
+        puntos_total = sumar_punto(call.from_user.id, nombre)
+        bot.answer_callback_query(call.id, f"✅ ¡Correcto! Llevas {puntos_total} pts")
+        bot.edit_message_text(
+            f"✅ *¡{nombre} acertó!*\n\n" + call.message.text.replace("🧠", "🎉"),
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode='Markdown'
+        )
+    else:
+        bot.answer_callback_query(call.id, "❌ Incorrecto, ¡intenta otro desafío!")
+
+@bot.message_handler(commands=['ranking'])
+def ver_ranking(message):
+    """Muestra el top 10 del desafío"""
+    puntos = cargar_puntos()
+    if not puntos:
+        bot.reply_to(message, "📊 Aún no hay puntuaciones. ¡Usa /desafio para jugar!")
+        return
+    
+    # Ordenar por puntos
+    ranking = sorted(puntos.items(), key=lambda x: x[1]['puntos'], reverse=True)[:10]
+    
+    texto = "🏆 *RANKING DEL DESAFÍO*\n\n"
+    medallas = ['🥇', '🥈', '🥉']
+    for i, (user_id, data) in enumerate(ranking):
+        medalla = medallas[i] if i < 3 else f"{i+1}."
+        texto += f"{medalla} {data['nombre']}: *{data['puntos']}* pts\n"
+    
     bot.reply_to(message, texto, parse_mode='Markdown')
 
 # Servidor HTTP simple para Render
