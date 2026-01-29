@@ -1,4 +1,5 @@
 import telebot
+from telebot import types
 from datetime import datetime
 import schedule
 import time
@@ -18,6 +19,7 @@ CHAT_ID = os.environ.get('CHAT_ID')
 # Archivo para guardar el estado de elementos usados
 ESTADO_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'estado_usado.json')
 SUGERENCIAS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sugerencias.json')
+VOTOS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'votos.json')
 
 def cargar_estado():
     """Carga el estado de elementos ya usados"""
@@ -48,6 +50,43 @@ def guardar_sugerencia(usuario, texto):
     })
     with open(SUGERENCIAS_FILE, 'w', encoding='utf-8') as f:
         json.dump(sugerencias, f, ensure_ascii=False, indent=2)
+
+def cargar_votos():
+    """Carga los votos guardados"""
+    if os.path.exists(VOTOS_FILE):
+        with open(VOTOS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+def guardar_votos(votos):
+    """Guarda los votos"""
+    with open(VOTOS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(votos, f, ensure_ascii=False, indent=2)
+
+def registrar_voto(fecha, user_id, voto):
+    """Registra un voto (True=👍, False=👎). Retorna (exito, ya_voto)"""
+    votos = cargar_votos()
+    if fecha not in votos:
+        votos[fecha] = {'up': [], 'down': []}
+    
+    # Verificar si ya votó
+    if user_id in votos[fecha]['up'] or user_id in votos[fecha]['down']:
+        return False, True
+    
+    if voto:
+        votos[fecha]['up'].append(user_id)
+    else:
+        votos[fecha]['down'].append(user_id)
+    
+    guardar_votos(votos)
+    return True, False
+
+def obtener_conteo_votos(fecha):
+    """Obtiene el conteo de votos para una fecha"""
+    votos = cargar_votos()
+    if fecha not in votos:
+        return 0, 0
+    return len(votos[fecha]['up']), len(votos[fecha]['down'])
 
 def obtener_sin_repetir(lista, usados_key):
     """Obtiene un elemento aleatorio sin repetir hasta agotar la lista"""
@@ -144,13 +183,24 @@ _{datetime.now().strftime("%d/%m/%Y")}_
 """
     return mensaje
 
+def crear_botones_voto(fecha):
+    """Crea los botones de votación"""
+    markup = types.InlineKeyboardMarkup()
+    up, down = obtener_conteo_votos(fecha)
+    btn_up = types.InlineKeyboardButton(f"👍 {up}", callback_data=f"voto_up_{fecha}")
+    btn_down = types.InlineKeyboardButton(f"👎 {down}", callback_data=f"voto_down_{fecha}")
+    markup.add(btn_up, btn_down)
+    return markup
+
 def enviar_mensaje():
     """Envía el mensaje al grupo"""
     try:
+        fecha = datetime.now().strftime("%Y-%m-%d")
         bot.send_message(
             CHAT_ID, 
             mensaje_diario(), 
-            parse_mode='Markdown'
+            parse_mode='Markdown',
+            reply_markup=crear_botones_voto(fecha)
         )
         print(f"Mensaje enviado: {datetime.now()}")
     except Exception as e:
@@ -189,7 +239,38 @@ def obtener_chat_id(message):
 
 @bot.message_handler(commands=['ahora'])
 def send_now(message):
-    bot.send_message(message.chat.id, mensaje_diario(), parse_mode='Markdown')
+    fecha = datetime.now().strftime("%Y-%m-%d")
+    bot.send_message(
+        message.chat.id, 
+        mensaje_diario(), 
+        parse_mode='Markdown',
+        reply_markup=crear_botones_voto(fecha)
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('voto_'))
+def handle_voto(call):
+    """Maneja los votos de los usuarios"""
+    partes = call.data.split('_')
+    tipo_voto = partes[1]  # 'up' o 'down'
+    fecha = partes[2]
+    user_id = call.from_user.id
+    
+    voto = (tipo_voto == 'up')
+    exito, ya_voto = registrar_voto(fecha, user_id, voto)
+    
+    if ya_voto:
+        bot.answer_callback_query(call.id, "⚠️ Ya votaste hoy!")
+        return
+    
+    # Actualizar botones con nuevo conteo
+    bot.edit_message_reply_markup(
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        reply_markup=crear_botones_voto(fecha)
+    )
+    
+    emoji = "👍" if voto else "👎"
+    bot.answer_callback_query(call.id, f"{emoji} ¡Voto registrado!")
 
 @bot.message_handler(commands=['sugerir'])
 def sugerir_frase(message):
