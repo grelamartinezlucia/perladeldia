@@ -9,6 +9,7 @@ import os
 import requests
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
+from dias_internacionales import DIAS_INTERNACIONALES
 
 # Tu token del BotFather
 TOKEN = os.environ.get('TOKEN')
@@ -246,52 +247,6 @@ def obtener_efemeride():
     except Exception as e:
         print(f"Error obteniendo efeméride: {e}")
     return None
-
-DIAS_INTERNACIONALES = {
-    # Enero
-    (1, 1): "Día de la Paz Mundial",
-    (1, 29): "Día Internacional de la Privacidad de Datos",
-    (1, 30): "Día de la No Violencia y la Paz (y del Croissant 🥐)",
-    (1, 31): "Día Internacional de la Cebra",
-    # Febrero
-    (2, 1): "Día Mundial del Galgo",
-    (2, 2): "Día de la Marmota y Día de los Humedales",
-    (2, 3): "Día Internacional del Abogado",
-    (2, 4): "Día Mundial contra el Cáncer",
-    (2, 5): "Día de Internet Segura (Safer Internet Day)",
-    (2, 6): "Día Internacional de Tolerancia Cero con la Mutilación Genital Femenina",
-    (2, 7): "Día de Enviar una Tarjeta a un Amigo",
-    (2, 8): "Día Internacional de la Epilepsia",
-    (2, 9): "Día Mundial de la Pizza 🍕",
-    (2, 10): "Día de las Legumbres",
-    (2, 11): "Día Internacional de la Mujer y la Niña en la Ciencia",
-    (2, 12): "Día de Darwin",
-    (2, 13): "Día Mundial de la Radio",
-    (2, 14): "Día de San Valentín 💘",
-    (2, 15): "Día Internacional del Cáncer Infantil",
-    (2, 16): "Día del Pistacho",
-    (2, 17): "Día del Gato 🐱",
-    (2, 18): "Día Internacional del Síndrome de Asperger",
-    (2, 19): "Día del Ejército Mexicano",
-    (2, 20): "Día Mundial de la Justicia Social",
-    (2, 21): "Día Internacional de la Lengua Materna",
-    (2, 22): "Día de la Igualdad Salarial",
-    (2, 23): "Día del Rotary",
-    (2, 24): "Día de la Bandera de México",
-    (2, 25): "Día del Implante Coclear",
-    (2, 26): "Día del Pistacho (EEUU)",
-    (2, 27): "Día Mundial del Oso Polar 🐻‍❄️",
-    (2, 28): "Día de las Enfermedades Raras",
-    # Marzo (primeros días)
-    (3, 1): "Día de la Cero Discriminación",
-    (3, 8): "Día Internacional de la Mujer",
-    # Otros importantes
-    (4, 22): "Día de la Tierra 🌍",
-    (5, 1): "Día del Trabajo",
-    (6, 5): "Día del Medio Ambiente",
-    (10, 31): "Halloween 🎃",
-    (12, 25): "Navidad 🎄",
-}
 
 def obtener_dia_internacional():
     """Obtiene el día internacional de hoy"""
