@@ -10,6 +10,7 @@ import requests
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from dias_internacionales import DIAS_INTERNACIONALES
+from horoscopo import obtener_horoscopo, listar_signos
 
 # Tu token del BotFather
 TOKEN = os.environ.get('TOKEN')
@@ -399,6 +400,34 @@ def ver_sugerencias(message):
     texto = "📬 *Sugerencias pendientes:*\n\n"
     for i, s in enumerate(sugerencias[-10:], 1):  # Últimas 10
         texto += f"{i}. _{s['texto']}_\n   👤 {s['usuario']} - {s['fecha']}\n\n"
+    bot.reply_to(message, texto, parse_mode='Markdown')
+
+@bot.message_handler(commands=['horoscopo'])
+def ver_horoscopo(message):
+    """Muestra el horóscopo irónico del día"""
+    registrar_usuario(message.from_user)
+    args = message.text.replace('/horoscopo', '').strip()
+    
+    if not args:
+        signos = listar_signos()
+        texto = "🔮 *HORÓSCOPO IRÓNICO*\n\n"
+        texto += "Dime tu signo y te diré tu destino (absurdo)\n\n"
+        texto += "Usa: `/horoscopo [signo]`\n\n"
+        texto += "*Signos disponibles:*\n"
+        texto += ", ".join(signos)
+        bot.reply_to(message, texto, parse_mode='Markdown')
+        return
+    
+    signo_nombre, prediccion = obtener_horoscopo(args)
+    
+    if not signo_nombre:
+        bot.reply_to(message, "❌ Signo no reconocido. Prueba con: aries, tauro, geminis, cancer, leo, virgo, libra, escorpio, sagitario, capricornio, acuario, piscis")
+        return
+    
+    texto = f"🔮 *HORÓSCOPO IRÓNICO*\n\n"
+    texto += f"*{signo_nombre}*\n\n"
+    texto += f"_{prediccion}_"
+    
     bot.reply_to(message, texto, parse_mode='Markdown')
 
 @bot.message_handler(commands=['desafio'])
