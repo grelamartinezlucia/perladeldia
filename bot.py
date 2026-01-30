@@ -11,6 +11,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from dias_internacionales import DIAS_INTERNACIONALES
 from horoscopo import obtener_horoscopo, listar_signos
+from contenido import PALABRAS_CURIOSAS, REFRANES, FRASES_AMIGOS
 
 # Tu token del BotFather
 TOKEN = os.environ.get('TOKEN')
@@ -177,61 +178,6 @@ def obtener_sin_repetir(lista, usados_key):
     
     return elegido
 
-# Tus contenidos
-PALABRAS_CURIOSAS = [
-    "Petricor: el olor de la lluvia al caer sobre tierra seca",
-    "Procrastinar: posponer tareas constantemente",
-    "Serendipia: descubrimiento afortunado e inesperado",
-    "Indócil: que no tiene la cualidad de ser obediente",
-    "Alipende: Se refiere a una persona pilla, traviesa o 'de una pieza' ",
-    "Arrebol: Color rojo, especialmente el de las nubes iluminadas por los rayos del sol o el del rostro",
-    "Inefable: Que no puede explicar con palabras",
-    "Melifluo: Dulce, suave, delicado y tierno en el trato o en la manera de hablar",
-    "Limerencia: Estado mental involuntario de atracción romántica obsesiva",
-    "Bonhomía: Afabilidad, sencillez y bondad en el carácter",
-    "Ademán: Movimiento o actitud del cuerpo o de alguna parte suya con que se manifiesta disposición, intención o sentimiento",
-    "Ataraxia: Imperturbabilidad, serenidad",
-]
-
-REFRANES = [
-    "A quien madruga, Dios le ayuda",
-    "Más vale un backup a tiempo que cien disculpas después",
-    "No por mucho madrugar amanece más temprano",
-    "No es oro todo lo que aparece en Instagram",
-    "Más vale pájaro en mano que ciento volando",
-    "Hecha la ley, hecha la VPN",
-    "Dime qué posteas y te diré quién eres",
-    "Mal de muchos, consuelo de tontos",
-    "Gato escaldado del agua fría huye",
-    "La pereza anda tan despacio que la pobreza la alcanza",
-    "No hay atajo sin trabajo",
-    "No vendas la piel del oso antes de cazarlo",
-    "Nadie es profeta en su tierra",
-    "No se ganó Zamora en una hora",
-    "El que tropieza dos veces con la misma piedra, merece que se le caiga encima",
-    "Golondrina que por San Blas ves, o se helará o hambre tendrá",
-    "Padres vendedores, hijos gastadores; nietos pordioseros",
-    "El que guarda, halla",
-    "Cara bonita, poco dura",
-    "Desgracia compartida, menos sentida",
-    "A otro perro con ese hueso",
-]
-
-FRASES_AMIGOS = [
-    "Sé que mi destino está escrito - Mi abuela",
-    "'Llego tarde' - Maru Espasandín (cada vez que quedas con ella)",
-    "Estaba tendiendo la ropa - Tania Eiros cada vez que hizo el amor",
-    "Follo, fumo y como cerdo, soy un partidazo para cualquier musulmán - Cris Flores Senegal 2025",
-    "Si vienes te enseño mi pimiento - Iván V.S.",
-    "Somos escarabajos peloteros creando montañas de estiércol - Raquel F.S.",
-    "Cerra sesión e volve a entrar - Manuel Reyes",
-    "Hoy vi un video de un trio, de cómo gestionaban sus gastos y se ahorran pasta - Alicia González",
-    "Esto es el chiringuito de peine - Raquel F.S.",
-    "'¡Furcia!' (mientras aplasta una hormiga) - Loreto M.S. ",
-    "Al final en este  país la opción más realista de tener una vivienda es ser okupa- Lucía Fisio",
-    "Pasarlo bien, venga ciao - Carliños",
-]
-
 def obtener_efemeride():
     """Obtiene una efeméride del día desde Wikipedia API"""
     try:
@@ -329,6 +275,7 @@ Soy tu dealer diario de sabiduría random y frasecitas que nadie pidió pero tod
 /desafio - ¡Pon a prueba tu vocabulario!
 /ranking - Top 10 del desafío
 /sugerir [frase] - Sugiere una frase mítica para añadir
+/horoscopo [signo] - Tu destino más absurdo
 
 Prepárate para la cultura... o algo parecido 🤷‍♀️
 """
@@ -530,25 +477,30 @@ def ver_stats(message):
 @bot.message_handler(commands=['usuarios'])
 def ver_usuarios(message):
     """Muestra la lista de usuarios registrados"""
-    usuarios = cargar_usuarios()
-    if not usuarios:
-        bot.reply_to(message, "👥 Aún no hay usuarios registrados.")
-        return
-    
-    texto = f"👥 *USUARIOS DEL BOT* ({len(usuarios)})\n\n"
-    for user_id, data in list(usuarios.items())[-20:]:  # Últimos 20
-        nombre = data.get('nombre', 'Sin nombre')
-        username = data.get('username')
-        ultima = data.get('ultima_vez', '?')
-        if username:
-            texto += f"• {nombre} (@{username})\n  └ Última vez: {ultima}\n"
-        else:
-            texto += f"• {nombre}\n  └ Última vez: {ultima}\n"
-    
-    if len(usuarios) > 20:
-        texto += f"\n_...y {len(usuarios) - 20} más_"
-    
-    bot.reply_to(message, texto, parse_mode='Markdown')
+    try:
+        usuarios = cargar_usuarios()
+        print(f"Usuarios cargados: {len(usuarios)}")
+        if not usuarios:
+            bot.reply_to(message, "👥 Aún no hay usuarios registrados.")
+            return
+        
+        texto = f"👥 *USUARIOS DEL BOT* ({len(usuarios)})\n\n"
+        for user_id, data in list(usuarios.items())[-20:]:  # Últimos 20
+            nombre = data.get('nombre', 'Sin nombre')
+            username = data.get('username')
+            ultima = data.get('ultima_vez', '?')
+            if username:
+                texto += f"• {nombre} (@{username})\n  └ Última vez: {ultima}\n"
+            else:
+                texto += f"• {nombre}\n  └ Última vez: {ultima}\n"
+        
+        if len(usuarios) > 20:
+            texto += f"\n_...y {len(usuarios) - 20} más_"
+        
+        bot.reply_to(message, texto, parse_mode='Markdown')
+    except Exception as e:
+        print(f"Error en /usuarios: {e}")
+        bot.reply_to(message, f"❌ Error: {e}")
 
 # Servidor HTTP simple para Render
 class HealthHandler(BaseHTTPRequestHandler):
