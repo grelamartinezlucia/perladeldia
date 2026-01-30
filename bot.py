@@ -22,6 +22,7 @@ ESTADO_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'estado_u
 SUGERENCIAS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sugerencias.json')
 VOTOS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'votos.json')
 PUNTOS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'puntos.json')
+USUARIOS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'usuarios.json')
 
 def cargar_estado():
     """Carga el estado de elementos ya usados"""
@@ -52,6 +53,25 @@ def guardar_sugerencia(usuario, texto):
     })
     with open(SUGERENCIAS_FILE, 'w', encoding='utf-8') as f:
         json.dump(sugerencias, f, ensure_ascii=False, indent=2)
+
+def cargar_usuarios():
+    """Carga el registro de usuarios"""
+    if os.path.exists(USUARIOS_FILE):
+        with open(USUARIOS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+def registrar_usuario(user):
+    """Registra o actualiza un usuario"""
+    usuarios = cargar_usuarios()
+    user_key = str(user.id)
+    usuarios[user_key] = {
+        'nombre': user.first_name or 'Sin nombre',
+        'username': user.username or None,
+        'ultima_vez': datetime.now().strftime("%d/%m/%Y %H:%M")
+    }
+    with open(USUARIOS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(usuarios, f, ensure_ascii=False, indent=2)
 
 def cargar_votos():
     """Carga los votos guardados"""
@@ -337,13 +357,14 @@ schedule.every().day.at("09:00").do(enviar_mensaje)
 
 @bot.message_handler(commands=['start', 'hola'])
 def send_welcome(message):
+    registrar_usuario(message.from_user)
     bienvenida = """
 🦪 *¡Ey, bienvenido/a al Bot de las Perlas!* 🦪
 
 Soy tu dealer diario de sabiduría random y frasecitas que nadie pidió pero todos necesitamos.
 
 *¿Qué hago yo aquí?*
-📚 Cada día a las 9:00 te suelto una *palabra curiosa* para que parezcas más listo/a en las conversaciones
+📚 Cada día a las 10:00 te suelto una *palabra curiosa* para que parezcas más listo/a en las conversaciones
 🎯 Un *refrán* (algunos clásicos, otros del siglo XXI)
 😂 Una *frase mítica* de los colegas (sí, esas que no deberían salir del grupo)
 
@@ -356,7 +377,6 @@ Soy tu dealer diario de sabiduría random y frasecitas que nadie pidió pero tod
 Prepárate para la cultura... o algo parecido 🤷‍♀️
 """
     bot.reply_to(message, bienvenida, parse_mode='Markdown')
-    # Imprime el chat_id para configurarlo
     print(f"Chat ID: {message.chat.id}")
 
 @bot.message_handler(commands=['michat'])
@@ -367,6 +387,7 @@ def obtener_chat_id(message):
 
 @bot.message_handler(commands=['ahora'])
 def send_now(message):
+    registrar_usuario(message.from_user)
     fecha = datetime.now().strftime("%Y-%m-%d")
     bot.send_message(
         message.chat.id, 
@@ -378,6 +399,7 @@ def send_now(message):
 @bot.callback_query_handler(func=lambda call: call.data.startswith('voto_'))
 def handle_voto(call):
     """Maneja los votos de los usuarios"""
+    registrar_usuario(call.from_user)
     partes = call.data.split('_')
     tipo_voto = partes[1]  # 'up' o 'down'
     fecha = partes[2]
@@ -402,6 +424,7 @@ def handle_voto(call):
 
 @bot.message_handler(commands=['sugerir'])
 def sugerir_frase(message):
+    registrar_usuario(message.from_user)
     texto = message.text.replace('/sugerir', '').strip()
     if not texto:
         bot.reply_to(message, "✏️ Usa: /sugerir Tu frase mítica - Autor")
@@ -426,6 +449,7 @@ def ver_sugerencias(message):
 @bot.message_handler(commands=['desafio'])
 def enviar_desafio(message):
     """Envía un desafío de vocabulario"""
+    registrar_usuario(message.from_user)
     palabra, opciones, indice_correcto = generar_quiz()
     
     letras = ['A', 'B', 'C', 'D']
@@ -479,6 +503,66 @@ def ver_ranking(message):
     for i, (user_id, data) in enumerate(ranking):
         medalla = medallas[i] if i < 3 else f"{i+1}."
         texto += f"{medalla} {data['nombre']}: *{data['puntos']}* pts\n"
+    
+    bot.reply_to(message, texto, parse_mode='Markdown')
+
+@bot.message_handler(commands=['stats'])
+def ver_stats(message):
+    """Muestra estadísticas del bot"""
+    votos = cargar_votos()
+    puntos = cargar_puntos()
+    
+    # Usuarios únicos que han votado
+    usuarios_votos = set()
+    total_likes = 0
+    total_dislikes = 0
+    for fecha, data in votos.items():
+        usuarios_votos.update(data.get('up', []))
+        usuarios_votos.update(data.get('down', []))
+        total_likes += len(data.get('up', []))
+        total_dislikes += len(data.get('down', []))
+    
+    # Usuarios del desafío
+    usuarios_desafio = len(puntos)
+    
+    # Últimos 5 días de votos
+    ultimos_dias = sorted(votos.keys(), reverse=True)[:5]
+    
+    texto = "📊 *ESTADÍSTICAS DEL BOT*\n\n"
+    texto += f"👥 *Usuarios que han votado:* {len(usuarios_votos)}\n"
+    texto += f"🎮 *Jugadores del desafío:* {usuarios_desafio}\n\n"
+    texto += f"👍 *Total likes:* {total_likes}\n"
+    texto += f"👎 *Total dislikes:* {total_dislikes}\n\n"
+    
+    if ultimos_dias:
+        texto += "*Últimos días:*\n"
+        for fecha in ultimos_dias:
+            up = len(votos[fecha].get('up', []))
+            down = len(votos[fecha].get('down', []))
+            texto += f"📅 {fecha}: 👍{up} 👎{down}\n"
+    
+    bot.reply_to(message, texto, parse_mode='Markdown')
+
+@bot.message_handler(commands=['usuarios'])
+def ver_usuarios(message):
+    """Muestra la lista de usuarios registrados"""
+    usuarios = cargar_usuarios()
+    if not usuarios:
+        bot.reply_to(message, "👥 Aún no hay usuarios registrados.")
+        return
+    
+    texto = f"👥 *USUARIOS DEL BOT* ({len(usuarios)})\n\n"
+    for user_id, data in list(usuarios.items())[-20:]:  # Últimos 20
+        nombre = data.get('nombre', 'Sin nombre')
+        username = data.get('username')
+        ultima = data.get('ultima_vez', '?')
+        if username:
+            texto += f"• {nombre} (@{username})\n  └ Última vez: {ultima}\n"
+        else:
+            texto += f"• {nombre}\n  └ Última vez: {ultima}\n"
+    
+    if len(usuarios) > 20:
+        texto += f"\n_...y {len(usuarios) - 20} más_"
     
     bot.reply_to(message, texto, parse_mode='Markdown')
 
