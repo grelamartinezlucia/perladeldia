@@ -12,6 +12,7 @@ import threading
 from dias_internacionales import DIAS_INTERNACIONALES
 from horoscopo import obtener_horoscopo, listar_signos
 from contenido import PALABRAS_CURIOSAS, REFRANES, FRASES_AMIGOS
+from efemerides import EFEMERIDES
 
 # Tu token del BotFather
 TOKEN = os.environ.get('TOKEN')
@@ -179,9 +180,16 @@ def obtener_sin_repetir(lista, usados_key):
     return elegido
 
 def obtener_efemeride():
-    """Obtiene una efeméride del día desde Wikipedia API"""
+    """Obtiene una efeméride del día - primero curada, luego Wikipedia como fallback"""
+    hoy = datetime.now()
+    
+    # Primero intentar con el diccionario curado
+    efemeride_curada = EFEMERIDES.get((hoy.month, hoy.day))
+    if efemeride_curada:
+        return efemeride_curada
+    
+    # Fallback: Wikipedia API
     try:
-        hoy = datetime.now()
         url = f"https://es.wikipedia.org/api/rest_v1/feed/onthisday/events/{hoy.month}/{hoy.day}"
         response = requests.get(url, timeout=10, headers={'User-Agent': 'PerlaBotTelegram/1.0'})
         if response.status_code == 200:
