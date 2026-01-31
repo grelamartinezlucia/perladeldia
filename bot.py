@@ -1,6 +1,6 @@
 import telebot
 from telebot import types
-from datetime import datetime
+from datetime import datetime, timedelta
 import schedule
 import time
 import random
@@ -27,6 +27,7 @@ SUGERENCIAS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sug
 VOTOS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'votos.json')
 PUNTOS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'puntos.json')
 USUARIOS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'usuarios.json')
+FRASES_APROBADAS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frases_aprobadas.json')
 
 def cargar_estado():
     """Carga el estado de elementos ya usados"""
@@ -47,16 +48,44 @@ def cargar_sugerencias():
             return json.load(f)
     return []
 
-def guardar_sugerencia(usuario, texto):
-    """Guarda una nueva sugerencia"""
+def guardar_sugerencia(user_id, chat_id, usuario, texto):
+    """Guarda una nueva sugerencia con datos para notificar"""
     sugerencias = cargar_sugerencias()
     sugerencias.append({
+        'id': len(sugerencias),
+        'user_id': user_id,
+        'chat_id': chat_id,
         'usuario': usuario,
         'texto': texto,
-        'fecha': datetime.now().strftime("%d/%m/%Y %H:%M")
+        'fecha': datetime.now().strftime("%d/%m/%Y %H:%M"),
+        'estado': 'pendiente'
     })
     with open(SUGERENCIAS_FILE, 'w', encoding='utf-8') as f:
         json.dump(sugerencias, f, ensure_ascii=False, indent=2)
+
+def guardar_sugerencias(sugerencias):
+    """Guarda todas las sugerencias"""
+    with open(SUGERENCIAS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(sugerencias, f, ensure_ascii=False, indent=2)
+
+def cargar_frases_aprobadas():
+    """Carga las frases aprobadas dinámicamente"""
+    if os.path.exists(FRASES_APROBADAS_FILE):
+        with open(FRASES_APROBADAS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
+
+def guardar_frase_aprobada(frase):
+    """Añade una frase aprobada al archivo"""
+    frases = cargar_frases_aprobadas()
+    if frase not in frases:
+        frases.append(frase)
+        with open(FRASES_APROBADAS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(frases, f, ensure_ascii=False, indent=2)
+
+def obtener_todas_frases():
+    """Combina frases de contenido.py + aprobadas dinámicamente"""
+    return FRASES_AMIGOS + cargar_frases_aprobadas()
 
 def cargar_usuarios():
     """Carga el registro de usuarios"""
@@ -65,13 +94,18 @@ def cargar_usuarios():
             return json.load(f)
     return {}
 
-def registrar_usuario(user):
-    """Registra o actualiza un usuario"""
+def registrar_usuario(user, chat_id=None):
+    """Registra o actualiza un usuario con su chat_id para envíos diarios"""
     usuarios = cargar_usuarios()
     user_key = str(user.id)
+    
+    # Si ya existe, mantener el chat_id anterior si no se proporciona uno nuevo
+    chat_id_guardado = usuarios.get(user_key, {}).get('chat_id')
+    
     usuarios[user_key] = {
         'nombre': user.first_name or 'Sin nombre',
         'username': user.username or None,
+        'chat_id': chat_id or chat_id_guardado,
         'ultima_vez': datetime.now().strftime("%d/%m/%Y %H:%M")
     }
     with open(USUARIOS_FILE, 'w', encoding='utf-8') as f:
@@ -126,16 +160,79 @@ def guardar_puntos(puntos):
     with open(PUNTOS_FILE, 'w', encoding='utf-8') as f:
         json.dump(puntos, f, ensure_ascii=False, indent=2)
 
-def sumar_punto(user_id, nombre):
-    """Suma un punto al usuario"""
+# Diccionario en memoria para trackear intentos por mensaje
+INTENTOS_DESAFIO = {}  # {"user_id_msg_id": intentos}
+
+def sumar_puntos(user_id, nombre, puntos_ganados):
+    """Suma puntos al usuario con historial por fecha"""
+    if puntos_ganados <= 0:
+        return 0
+    
     puntos = cargar_puntos()
     user_key = str(user_id)
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    
     if user_key not in puntos:
-        puntos[user_key] = {'nombre': nombre, 'puntos': 0}
-    puntos[user_key]['puntos'] += 1
+        puntos[user_key] = {'nombre': nombre, 'historial': []}
+    
     puntos[user_key]['nombre'] = nombre
+    puntos[user_key]['historial'].append({
+        'fecha': fecha_hoy,
+        'puntos': puntos_ganados
+    })
+    
     guardar_puntos(puntos)
-    return puntos[user_key]['puntos']
+    return calcular_puntos_semana(user_key)
+
+def calcular_puntos_semana(user_key):
+    """Calcula los puntos de la semana actual"""
+    puntos = cargar_puntos()
+    if user_key not in puntos:
+        return 0
+    
+    hoy = datetime.now()
+    inicio_semana = hoy - timedelta(days=hoy.weekday())
+    inicio_semana = inicio_semana.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    total = 0
+    for registro in puntos[user_key].get('historial', []):
+        fecha = datetime.strptime(registro['fecha'], "%Y-%m-%d")
+        if fecha >= inicio_semana:
+            total += registro['puntos']
+    return total
+
+def calcular_puntos_mes(user_key):
+    """Calcula los puntos del mes actual"""
+    puntos = cargar_puntos()
+    if user_key not in puntos:
+        return 0
+    
+    hoy = datetime.now()
+    mes_actual = hoy.month
+    año_actual = hoy.year
+    
+    total = 0
+    for registro in puntos[user_key].get('historial', []):
+        fecha = datetime.strptime(registro['fecha'], "%Y-%m-%d")
+        if fecha.month == mes_actual and fecha.year == año_actual:
+            total += registro['puntos']
+    return total
+
+def obtener_ranking(periodo='semana'):
+    """Obtiene el ranking ordenado por periodo (semana o mes)"""
+    puntos = cargar_puntos()
+    ranking = []
+    
+    for user_key, data in puntos.items():
+        if periodo == 'semana':
+            pts = calcular_puntos_semana(user_key)
+        else:
+            pts = calcular_puntos_mes(user_key)
+        
+        if pts > 0:
+            ranking.append((user_key, data['nombre'], pts))
+    
+    return sorted(ranking, key=lambda x: x[2], reverse=True)[:10]
 
 def parsear_palabra(texto):
     """Separa 'Palabra: definición' en (palabra, definición)"""
@@ -212,7 +309,7 @@ def mensaje_diario():
     """Genera el mensaje del día"""
     palabra = obtener_sin_repetir(PALABRAS_CURIOSAS, 'palabras')
     refran = obtener_sin_repetir(REFRANES, 'refranes')
-    frase = obtener_sin_repetir(FRASES_AMIGOS, 'frases')
+    frase = obtener_sin_repetir(obtener_todas_frases(), 'frases')
     efemeride = obtener_efemeride()
     dia_internacional = obtener_dia_internacional()
     
@@ -249,25 +346,40 @@ def crear_botones_voto(fecha):
     return markup
 
 def enviar_mensaje():
-    """Envía el mensaje al grupo"""
-    try:
-        fecha = datetime.now().strftime("%Y-%m-%d")
-        bot.send_message(
-            CHAT_ID, 
-            mensaje_diario(), 
-            parse_mode='Markdown',
-            reply_markup=crear_botones_voto(fecha)
-        )
-        print(f"Mensaje enviado: {datetime.now()}")
-    except Exception as e:
-        print(f"Error: {e}")
+    """Envía el mensaje diario a todos los usuarios registrados"""
+    usuarios = cargar_usuarios()
+    fecha = datetime.now().strftime("%Y-%m-%d")
+    mensaje = mensaje_diario()
+    markup = crear_botones_voto(fecha)
+    
+    enviados = 0
+    errores = 0
+    
+    for user_id, data in usuarios.items():
+        chat_id = data.get('chat_id')
+        if not chat_id:
+            continue
+        
+        try:
+            bot.send_message(
+                chat_id, 
+                mensaje, 
+                parse_mode='Markdown',
+                reply_markup=markup
+            )
+            enviados += 1
+        except Exception as e:
+            errores += 1
+            print(f"Error enviando a {data.get('nombre', user_id)}: {e}")
+    
+    print(f"Mensaje diario enviado: {enviados} OK, {errores} errores - {datetime.now()}")
 
 # Programar envío diario a las 9:00 AM
 schedule.every().day.at("09:00").do(enviar_mensaje)
 
 @bot.message_handler(commands=['start', 'hola'])
 def send_welcome(message):
-    registrar_usuario(message.from_user)
+    registrar_usuario(message.from_user, message.chat.id)
     bienvenida = """
 🦪 *¡Ey, bienvenido/a al Bot de las Perlas!* 🦪
 
@@ -281,7 +393,7 @@ Soy tu dealer diario de sabiduría random y frasecitas que nadie pidió pero tod
 *Comandos disponibles:*
 /ahora - Si no puedes esperar a mañana, ¡perla instantánea!
 /desafio - ¡Pon a prueba tu vocabulario!
-/ranking - Top 10 del desafío
+/ranking - Ranking semanal y mensual
 /sugerir [frase] - Sugiere una frase mítica para añadir
 /horoscopo [signo] - Tu destino más absurdo
 
@@ -342,20 +454,135 @@ def sugerir_frase(message):
         return
     
     usuario = message.from_user.first_name or "Anónimo"
-    guardar_sugerencia(usuario, texto)
-    bot.reply_to(message, f"✅ ¡Gracias {usuario}! Tu sugerencia ha sido guardada para revisión.")
+    guardar_sugerencia(message.from_user.id, message.chat.id, usuario, texto)
+    bot.reply_to(message, f"✅ ¡Gracias {usuario}! Tu sugerencia ha sido guardada para revisión. Te notificaré cuando sea revisada.")
 
 @bot.message_handler(commands=['versugerencias'])
 def ver_sugerencias(message):
     sugerencias = cargar_sugerencias()
-    if not sugerencias:
+    pendientes = [s for s in sugerencias if s.get('estado') == 'pendiente']
+    
+    if not pendientes:
         bot.reply_to(message, "📭 No hay sugerencias pendientes.")
         return
     
-    texto = "📬 *Sugerencias pendientes:*\n\n"
-    for i, s in enumerate(sugerencias[-10:], 1):  # Últimas 10
-        texto += f"{i}. _{s['texto']}_\n   👤 {s['usuario']} - {s['fecha']}\n\n"
-    bot.reply_to(message, texto, parse_mode='Markdown')
+    # Mostrar la primera pendiente con botones
+    s = pendientes[0]
+    idx = sugerencias.index(s)
+    
+    texto = f"📬 *Sugerencia pendiente* ({len(pendientes)} en cola)\n\n"
+    texto += f"_{s['texto']}_\n\n"
+    texto += f"👤 {s['usuario']} - {s['fecha']}"
+    
+    markup = types.InlineKeyboardMarkup()
+    btn_aprobar = types.InlineKeyboardButton("✅ Aprobar", callback_data=f"sug_aprobar_{idx}")
+    btn_rechazar = types.InlineKeyboardButton("❌ Rechazar", callback_data=f"sug_rechazar_{idx}")
+    btn_saltar = types.InlineKeyboardButton("⏭️ Siguiente", callback_data=f"sug_saltar_{idx}")
+    markup.add(btn_aprobar, btn_rechazar)
+    markup.add(btn_saltar)
+    
+    bot.reply_to(message, texto, parse_mode='Markdown', reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('sug_'))
+def handle_sugerencia(call):
+    """Maneja aprobar/rechazar sugerencias"""
+    partes = call.data.split('_')
+    accion = partes[1]
+    idx = int(partes[2])
+    
+    sugerencias = cargar_sugerencias()
+    if idx >= len(sugerencias):
+        bot.answer_callback_query(call.id, "❌ Sugerencia no encontrada")
+        return
+    
+    s = sugerencias[idx]
+    
+    if accion == 'saltar':
+        # Buscar siguiente pendiente
+        pendientes = [(i, sg) for i, sg in enumerate(sugerencias) if sg.get('estado') == 'pendiente' and i > idx]
+        if not pendientes:
+            pendientes = [(i, sg) for i, sg in enumerate(sugerencias) if sg.get('estado') == 'pendiente' and i != idx]
+        
+        if not pendientes:
+            bot.edit_message_text("📭 No hay más sugerencias pendientes.",
+                chat_id=call.message.chat.id, message_id=call.message.message_id)
+            return
+        
+        next_idx, next_s = pendientes[0]
+        pendientes_count = len([sg for sg in sugerencias if sg.get('estado') == 'pendiente'])
+        
+        texto = f"📬 *Sugerencia pendiente* ({pendientes_count} en cola)\n\n"
+        texto += f"_{next_s['texto']}_\n\n"
+        texto += f"👤 {next_s['usuario']} - {next_s['fecha']}"
+        
+        markup = types.InlineKeyboardMarkup()
+        btn_aprobar = types.InlineKeyboardButton("✅ Aprobar", callback_data=f"sug_aprobar_{next_idx}")
+        btn_rechazar = types.InlineKeyboardButton("❌ Rechazar", callback_data=f"sug_rechazar_{next_idx}")
+        btn_saltar = types.InlineKeyboardButton("⏭️ Siguiente", callback_data=f"sug_saltar_{next_idx}")
+        markup.add(btn_aprobar, btn_rechazar)
+        markup.add(btn_saltar)
+        
+        bot.edit_message_text(texto, chat_id=call.message.chat.id, 
+            message_id=call.message.message_id, parse_mode='Markdown', reply_markup=markup)
+        return
+    
+    if accion == 'aprobar':
+        sugerencias[idx]['estado'] = 'aprobada'
+        guardar_sugerencias(sugerencias)
+        
+        # Añadir frase al archivo de frases aprobadas
+        guardar_frase_aprobada(s['texto'])
+        
+        # Notificar al usuario
+        chat_id = s.get('chat_id')
+        if chat_id:
+            try:
+                bot.send_message(chat_id, 
+                    f"🎉 *¡Tu sugerencia fue aprobada!*\n\n_{s['texto']}_\n\n¡Ya está añadida a las frases del bot! Gracias por contribuir 🙌",
+                    parse_mode='Markdown')
+            except:
+                pass
+        
+        bot.answer_callback_query(call.id, "✅ Aprobada, añadida y usuario notificado")
+        
+    elif accion == 'rechazar':
+        sugerencias[idx]['estado'] = 'rechazada'
+        guardar_sugerencias(sugerencias)
+        
+        # Notificar al usuario
+        chat_id = s.get('chat_id')
+        if chat_id:
+            try:
+                bot.send_message(chat_id,
+                    f"📝 *Sobre tu sugerencia...*\n\n_{s['texto']}_\n\nNo ha sido seleccionada esta vez, pero ¡gracias por participar! Sigue sugiriendo 🙌",
+                    parse_mode='Markdown')
+            except:
+                pass
+        
+        bot.answer_callback_query(call.id, "❌ Rechazada y usuario notificado")
+    
+    # Mostrar siguiente o mensaje de fin
+    pendientes = [sg for sg in sugerencias if sg.get('estado') == 'pendiente']
+    if pendientes:
+        next_s = pendientes[0]
+        next_idx = sugerencias.index(next_s)
+        
+        texto = f"📬 *Sugerencia pendiente* ({len(pendientes)} en cola)\n\n"
+        texto += f"_{next_s['texto']}_\n\n"
+        texto += f"👤 {next_s['usuario']} - {next_s['fecha']}"
+        
+        markup = types.InlineKeyboardMarkup()
+        btn_aprobar = types.InlineKeyboardButton("✅ Aprobar", callback_data=f"sug_aprobar_{next_idx}")
+        btn_rechazar = types.InlineKeyboardButton("❌ Rechazar", callback_data=f"sug_rechazar_{next_idx}")
+        btn_saltar = types.InlineKeyboardButton("⏭️ Siguiente", callback_data=f"sug_saltar_{next_idx}")
+        markup.add(btn_aprobar, btn_rechazar)
+        markup.add(btn_saltar)
+        
+        bot.edit_message_text(texto, chat_id=call.message.chat.id,
+            message_id=call.message.message_id, parse_mode='Markdown', reply_markup=markup)
+    else:
+        bot.edit_message_text("✅ *¡Todas las sugerencias han sido revisadas!*",
+            chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode='Markdown')
 
 @bot.message_handler(commands=['horoscopo'])
 def ver_horoscopo(message):
@@ -413,35 +640,82 @@ def handle_desafio(call):
     respuesta = int(partes[1])
     correcta = int(partes[2])
     
+    user_id = call.from_user.id
+    msg_id = call.message.message_id
+    clave_intento = f"{user_id}_{msg_id}"
+    
+    # Contar intento
+    if clave_intento not in INTENTOS_DESAFIO:
+        INTENTOS_DESAFIO[clave_intento] = 0
+    INTENTOS_DESAFIO[clave_intento] += 1
+    intento = INTENTOS_DESAFIO[clave_intento]
+    
     if respuesta == correcta:
         nombre = call.from_user.first_name or "Anónimo"
-        puntos_total = sumar_punto(call.from_user.id, nombre)
-        bot.answer_callback_query(call.id, f"✅ ¡Correcto! Llevas {puntos_total} pts")
+        
+        # Calcular puntos según intento
+        if intento == 1:
+            pts_ganados = 3
+        elif intento == 2:
+            pts_ganados = 1
+        else:
+            pts_ganados = 0
+        
+        puntos_semana = sumar_puntos(user_id, nombre, pts_ganados)
+        
+        if pts_ganados > 0:
+            msg_pts = f"+{pts_ganados} pts (semana: {puntos_semana})"
+        else:
+            msg_pts = "0 pts (ya no sumaba)"
+        
+        bot.answer_callback_query(call.id, f"✅ ¡Correcto! {msg_pts}")
         bot.edit_message_text(
-            f"✅ *¡{nombre} acertó!*\n\n" + call.message.text.replace("🧠", "🎉"),
+            f"✅ *¡{nombre} acertó!* ({msg_pts})\n\n" + call.message.text.replace("🧠", "🎉"),
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
             parse_mode='Markdown'
         )
+        # Limpiar intento
+        del INTENTOS_DESAFIO[clave_intento]
     else:
-        bot.answer_callback_query(call.id, "❌ Incorrecto, ¡intenta otro desafío!")
+        intentos_restantes = 2 - intento if intento < 2 else 0
+        if intentos_restantes > 0:
+            bot.answer_callback_query(call.id, f"❌ Incorrecto. Te queda {intentos_restantes} intento con puntos")
+        else:
+            bot.answer_callback_query(call.id, "❌ Incorrecto. Ya no sumas puntos, pero puedes seguir intentando")
 
 @bot.message_handler(commands=['ranking'])
 def ver_ranking(message):
-    """Muestra el top 10 del desafío"""
-    puntos = cargar_puntos()
-    if not puntos:
+    """Muestra el ranking semanal y mensual del desafío"""
+    ranking_semana = obtener_ranking('semana')
+    ranking_mes = obtener_ranking('mes')
+    
+    if not ranking_semana and not ranking_mes:
         bot.reply_to(message, "📊 Aún no hay puntuaciones. ¡Usa /desafio para jugar!")
         return
     
-    # Ordenar por puntos
-    ranking = sorted(puntos.items(), key=lambda x: x[1]['puntos'], reverse=True)[:10]
-    
-    texto = "🏆 *RANKING DEL DESAFÍO*\n\n"
     medallas = ['🥇', '🥈', '🥉']
-    for i, (user_id, data) in enumerate(ranking):
-        medalla = medallas[i] if i < 3 else f"{i+1}."
-        texto += f"{medalla} {data['nombre']}: *{data['puntos']}* pts\n"
+    texto = "🏆 *RANKING DEL DESAFÍO*\n"
+    texto += "_3 pts a la primera, 1 pt a la segunda_\n\n"
+    
+    # Ranking semanal
+    texto += "📅 *ESTA SEMANA:*\n"
+    if ranking_semana:
+        for i, (user_id, nombre, pts) in enumerate(ranking_semana[:5]):
+            medalla = medallas[i] if i < 3 else f"{i+1}."
+            texto += f"{medalla} {nombre}: *{pts}* pts\n"
+    else:
+        texto += "_Sin puntuaciones aún_\n"
+    
+    # Ranking mensual
+    mes_nombre = datetime.now().strftime("%B").capitalize()
+    texto += f"\n📆 *{mes_nombre.upper()}:*\n"
+    if ranking_mes:
+        for i, (user_id, nombre, pts) in enumerate(ranking_mes[:5]):
+            medalla = medallas[i] if i < 3 else f"{i+1}."
+            texto += f"{medalla} {nombre}: *{pts}* pts\n"
+    else:
+        texto += "_Sin puntuaciones aún_\n"
     
     bot.reply_to(message, texto, parse_mode='Markdown')
 

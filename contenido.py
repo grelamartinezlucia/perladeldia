@@ -175,4 +175,6 @@ FRASES_AMIGOS = [
     "Me voy para cama porque el karma existe - Jess S.V.",
     "Pero vamos a ver, las mujeres en navidades no trabajan? ni un solo partido de fútbol femenino ¿luego pretenden cobrar como los hombres? - Jess S.V.",
     "Ya llamé Martin a mi sobrino Daniel y Daniel a mi hijo Martín, soy madre nivel ultra - Sara UK",
+    "Donde hay pelito no hay delito - Marga G.C.",
+    "Si el césped ha crecido, juguemos el partido - Iván V.S.",
 ]
