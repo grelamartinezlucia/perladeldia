@@ -89,14 +89,15 @@ bottelegram/
 | Variable | Descripción |
 |----------|-------------|
 | `TOKEN` | Token del bot obtenido de BotFather |
-| `CHAT_ID` | (Opcional) Chat ID legacy, ya no es necesario |
+| `UPSTASH_REDIS_REST_URL` | URL de Upstash Redis para almacenamiento persistente |
+| `UPSTASH_REDIS_REST_TOKEN` | Token de autenticación de Upstash Redis |
 
 ### Despliegue en Render
 
 1. **Tipo de servicio**: Web Service
 2. **Build Command**: `pip install -r requirements.txt`
 3. **Start Command**: `python bot.py`
-4. **Variables de entorno**: Configurar `TOKEN`
+4. **Variables de entorno**: Configurar `TOKEN`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
 
 El bot incluye un servidor HTTP en el puerto 10000 para el health check de Render.
 

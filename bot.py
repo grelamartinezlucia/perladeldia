@@ -13,6 +13,7 @@ from dias_internacionales import DIAS_INTERNACIONALES
 from horoscopo import obtener_horoscopo, listar_signos
 from contenido import PALABRAS_CURIOSAS, REFRANES, FRASES_AMIGOS
 from efemerides import EFEMERIDES
+import storage
 
 # Tu token del BotFather
 TOKEN = os.environ.get('TOKEN')
@@ -21,32 +22,26 @@ bot = telebot.TeleBot(TOKEN)
 # Tu ID de chat
 CHAT_ID = os.environ.get('CHAT_ID')
 
-# Archivo para guardar el estado de elementos usados
-ESTADO_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'estado_usado.json')
-SUGERENCIAS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sugerencias.json')
-VOTOS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'votos.json')
-PUNTOS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'puntos.json')
-USUARIOS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'usuarios.json')
-FRASES_APROBADAS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frases_aprobadas.json')
+# Claves para Redis
+REDIS_ESTADO = 'estado_usado'
+REDIS_SUGERENCIAS = 'sugerencias'
+REDIS_VOTOS = 'votos'
+REDIS_PUNTOS = 'puntos'
+REDIS_USUARIOS = 'usuarios'
+REDIS_FRASES_APROBADAS = 'frases_aprobadas'
+REDIS_USOS_AHORA = 'usos_ahora'
 
 def cargar_estado():
     """Carga el estado de elementos ya usados"""
-    if os.path.exists(ESTADO_FILE):
-        with open(ESTADO_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {'palabras': [], 'refranes': [], 'frases': []}
+    return storage.obtener_dict(REDIS_ESTADO) or {'palabras': [], 'refranes': [], 'frases': []}
 
 def guardar_estado(estado):
     """Guarda el estado de elementos usados"""
-    with open(ESTADO_FILE, 'w', encoding='utf-8') as f:
-        json.dump(estado, f, ensure_ascii=False, indent=2)
+    storage.guardar_dict(REDIS_ESTADO, estado)
 
 def cargar_sugerencias():
     """Carga las sugerencias guardadas"""
-    if os.path.exists(SUGERENCIAS_FILE):
-        with open(SUGERENCIAS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return []
+    return storage.obtener_lista(REDIS_SUGERENCIAS)
 
 def guardar_sugerencia(user_id, chat_id, usuario, texto):
     """Guarda una nueva sugerencia con datos para notificar"""
@@ -60,28 +55,22 @@ def guardar_sugerencia(user_id, chat_id, usuario, texto):
         'fecha': datetime.now().strftime("%d/%m/%Y %H:%M"),
         'estado': 'pendiente'
     })
-    with open(SUGERENCIAS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(sugerencias, f, ensure_ascii=False, indent=2)
+    storage.guardar_lista(REDIS_SUGERENCIAS, sugerencias)
 
 def guardar_sugerencias(sugerencias):
     """Guarda todas las sugerencias"""
-    with open(SUGERENCIAS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(sugerencias, f, ensure_ascii=False, indent=2)
+    storage.guardar_lista(REDIS_SUGERENCIAS, sugerencias)
 
 def cargar_frases_aprobadas():
     """Carga las frases aprobadas dinámicamente"""
-    if os.path.exists(FRASES_APROBADAS_FILE):
-        with open(FRASES_APROBADAS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return []
+    return storage.obtener_lista(REDIS_FRASES_APROBADAS)
 
 def guardar_frase_aprobada(frase):
-    """Añade una frase aprobada al archivo"""
+    """Añade una frase aprobada"""
     frases = cargar_frases_aprobadas()
     if frase not in frases:
         frases.append(frase)
-        with open(FRASES_APROBADAS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(frases, f, ensure_ascii=False, indent=2)
+        storage.guardar_lista(REDIS_FRASES_APROBADAS, frases)
 
 def obtener_todas_frases():
     """Combina frases de contenido.py + aprobadas dinámicamente"""
@@ -89,10 +78,11 @@ def obtener_todas_frases():
 
 def cargar_usuarios():
     """Carga el registro de usuarios"""
-    if os.path.exists(USUARIOS_FILE):
-        with open(USUARIOS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {}
+    return storage.obtener_dict(REDIS_USUARIOS)
+
+def guardar_usuarios(usuarios):
+    """Guarda todos los usuarios"""
+    storage.guardar_dict(REDIS_USUARIOS, usuarios)
 
 def registrar_usuario(user, chat_id=None):
     """Registra o actualiza un usuario con su chat_id para envíos diarios"""
@@ -108,20 +98,15 @@ def registrar_usuario(user, chat_id=None):
         'chat_id': chat_id or chat_id_guardado,
         'ultima_vez': datetime.now().strftime("%d/%m/%Y %H:%M")
     }
-    with open(USUARIOS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(usuarios, f, ensure_ascii=False, indent=2)
+    guardar_usuarios(usuarios)
 
 def cargar_votos():
     """Carga los votos guardados"""
-    if os.path.exists(VOTOS_FILE):
-        with open(VOTOS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {}
+    return storage.obtener_dict(REDIS_VOTOS)
 
 def guardar_votos(votos):
     """Guarda los votos"""
-    with open(VOTOS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(votos, f, ensure_ascii=False, indent=2)
+    storage.guardar_dict(REDIS_VOTOS, votos)
 
 def registrar_voto(fecha, user_id, voto):
     """Registra un voto (True=👍, False=👎). Retorna (exito, ya_voto)"""
@@ -150,15 +135,11 @@ def obtener_conteo_votos(fecha):
 
 def cargar_puntos():
     """Carga las puntuaciones del quiz"""
-    if os.path.exists(PUNTOS_FILE):
-        with open(PUNTOS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {}
+    return storage.obtener_dict(REDIS_PUNTOS)
 
 def guardar_puntos(puntos):
     """Guarda las puntuaciones"""
-    with open(PUNTOS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(puntos, f, ensure_ascii=False, indent=2)
+    storage.guardar_dict(REDIS_PUNTOS, puntos)
 
 # Diccionario en memoria para trackear intentos por mensaje
 INTENTOS_DESAFIO = {}  # {"user_id_msg_id": intentos}
@@ -408,9 +389,52 @@ def obtener_chat_id(message):
     bot.reply_to(message, f"Tu Chat ID es: {chat_id}")
     print(f"Chat ID: {chat_id}")
 
+def obtener_usos_ahora(user_id):
+    """Obtiene cuántas veces ha usado /ahora hoy"""
+    usos = storage.obtener_dict(REDIS_USOS_AHORA)
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    clave = f"{user_id}_{fecha_hoy}"
+    return usos.get(clave, 0)
+
+def incrementar_usos_ahora(user_id):
+    """Incrementa el contador de usos de /ahora"""
+    usos = storage.obtener_dict(REDIS_USOS_AHORA)
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    clave = f"{user_id}_{fecha_hoy}"
+    
+    # Limpiar usos de días anteriores
+    usos = {k: v for k, v in usos.items() if k.endswith(fecha_hoy)}
+    
+    usos[clave] = usos.get(clave, 0) + 1
+    storage.guardar_dict(REDIS_USOS_AHORA, usos)
+    return usos[clave]
+
+MENSAJES_LIMITE_AHORA = [
+    # 4º intento - jocoso
+    "🙊 *¡Ey, ey, ey!* ¿Pero tú no tienes nada mejor que hacer?\n\nYa van 4 perlas hoy... Que el saber no ocupa lugar, pero la avaricia rompe el saco. 💰\n\n_Vuelve mañana, anda._",
+    # 5º intento - más cañero
+    "😒 Mira, cielo... Esto ya es un poco obsesivo.\n\nLas perlas se disfrutan como el buen vino: *con moderación*. Tú estás bebiendo directamente de la botella.\n\n_¿No tienes un hobby o algo?_",
+    # 6º+ intento - amenaza
+    "🔥 *Último aviso.*\n\nComo vuelvas a darle, te voy a llamar cosas que no puedo escribir aquí porque Telegram me banea.\n\nPista: riman con _bontántula_ y _bimbrécil_.\n\n🚫 _Bot bloqueado hasta mañana (broma, pero párate ya)_"
+]
+
 @bot.message_handler(commands=['ahora'])
 def send_now(message):
     registrar_usuario(message.from_user)
+    user_id = message.from_user.id
+    
+    # Verificar límite diario
+    usos = obtener_usos_ahora(user_id)
+    
+    if usos >= 3:
+        # Ya ha usado 3 veces, mostrar mensaje según intento
+        intento_extra = usos - 3  # 0, 1, 2+
+        idx = min(intento_extra, len(MENSAJES_LIMITE_AHORA) - 1)
+        incrementar_usos_ahora(user_id)
+        bot.reply_to(message, MENSAJES_LIMITE_AHORA[idx], parse_mode='Markdown')
+        return
+    
+    incrementar_usos_ahora(user_id)
     fecha = datetime.now().strftime("%Y-%m-%d")
     bot.send_message(
         message.chat.id, 
@@ -753,6 +777,48 @@ def ver_stats(message):
             up = len(votos[fecha].get('up', []))
             down = len(votos[fecha].get('down', []))
             texto += f"📅 {fecha}: 👍{up} 👎{down}\n"
+    
+    bot.reply_to(message, texto, parse_mode='Markdown')
+
+@bot.message_handler(commands=['datos'])
+def ver_datos(message):
+    """Muestra datos de contenido usado"""
+    estado = cargar_estado()
+    usuarios = cargar_usuarios()
+    sugerencias = cargar_sugerencias()
+    frases_aprobadas = cargar_frases_aprobadas()
+    
+    # Conteos
+    palabras_usadas = len(estado.get('palabras', []))
+    palabras_total = len(PALABRAS_CURIOSAS)
+    refranes_usados = len(estado.get('refranes', []))
+    refranes_total = len(REFRANES)
+    frases_usadas = len(estado.get('frases', []))
+    frases_total = len(obtener_todas_frases())
+    
+    usuarios_total = len(usuarios)
+    usuarios_suscritos = len([u for u in usuarios.values() if u.get('chat_id')])
+    sugerencias_pendientes = len([s for s in sugerencias if s.get('estado') == 'pendiente'])
+    
+    texto = "📊 *DATOS DEL BOT*\n\n"
+    texto += f"👥 *Usuarios registrados:* {usuarios_total}\n"
+    texto += f"📬 *Suscritos al diario:* {usuarios_suscritos}\n"
+    texto += f"💡 *Sugerencias pendientes:* {sugerencias_pendientes}\n"
+    texto += f"✅ *Frases aprobadas:* {len(frases_aprobadas)}\n\n"
+    
+    texto += "*Contenido usado:*\n"
+    texto += f"📚 Palabras: {palabras_usadas}/{palabras_total}\n"
+    texto += f"🎯 Refranes: {refranes_usados}/{refranes_total}\n"
+    texto += f"😂 Frases: {frases_usadas}/{frases_total}\n\n"
+    
+    # Progreso visual
+    def barra(usado, total):
+        pct = int((usado / total) * 10) if total > 0 else 0
+        return '▓' * pct + '░' * (10 - pct)
+    
+    texto += f"`{barra(palabras_usadas, palabras_total)}` Palabras\n"
+    texto += f"`{barra(refranes_usados, refranes_total)}` Refranes\n"
+    texto += f"`{barra(frases_usadas, frases_total)}` Frases"
     
     bot.reply_to(message, texto, parse_mode='Markdown')
 
