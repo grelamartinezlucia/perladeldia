@@ -164,25 +164,35 @@ REFRANES = [
 ]
 
 FRASES_AMIGOS = [
-    "Sé que mi destino está escrito - Mi abuela",
+    "Sé que mi destino está escrito pero no quiero saberlo - Mi abuela",
     "'Llego tarde' - Maru Espasandín (cada vez que quedas con ella)",
+    "Pero yo no lo entiendo, igual es que se me está encogiendo el cerebro - Raquel F.S.",
+    "Pareces nuevo/a - Iván V.S.",
     "Estaba tendiendo la ropa - Tania Eiros cada vez que hizo el amor",
     "Follo, fumo y como cerdo, soy un partidazo para cualquier musulmán - Cris Flores Senegal 2025",
     "Si vienes te enseño mi pimiento - Iván V.S.",
     "Somos escarabajos peloteros creando montañas de estiércol - Raquel F.S.",
-    "Cerra sesión e volve a entrar - Manuel Reyes",
+    "Cerra sesión e volve a entrar - Manuel Reyes, filósofo del s.XXI",
     "Hoy vi un video de un trio, de cómo gestionaban sus gastos y se ahorran pasta - Alicia González",
     "Esto es el chiringuito de peine - Raquel F.S.",
     "'¡Furcia!' (mientras aplasta una hormiga) - Loreto M.S.",
     "Al final en este país la opción más realista de tener una vivienda es ser okupa - Lucía Fisio",
     "Pasarlo bien, venga ciao - Carliños",
+    "Entra en modo incógnito - Manuel Reyes, filósofo del s.XXI",
     "Me voy para cama porque el karma existe - Jess S.V.",
+    "Eso no es una incidencia, eso es una ñapa de mierda -Raquel F.S.",
     "Pero vamos a ver, las mujeres en navidades no trabajan? ni un solo partido de fútbol femenino ¿luego pretenden cobrar como los hombres? - Jess S.V.",
     "Ya llamé Martin a mi sobrino Daniel y Daniel a mi hijo Martín, soy madre nivel ultra - Sara UK",
     "Donde hay pelito no hay delito - Marga G.C.",
+    "Eu probaría con espacios - Manuel Reyes, filósofo del s.XXI",
     "Si el césped ha crecido, juguemos el partido - Iván V.S.",
     "Chupame la cruz - María Bipo",
     "Soy la mejor parte de este trío - Lucía M.G.",
+    "24 horas parenme pouco - Manuel Reyes, filósofo del s.XXI",
     "Hay varios hombres en esa habitación y sabes ¿por qué no encontraba el abridor? PORQUE LO TENÍAN ALLÍ - Cris Flores (Senegal 2025)",
+    "Donde comes no cagues - Raquel F.S.",
+    "En mi casa solo follo yo, ya os voy avisando, que os veo venir - Tania Eiros",
+    "Esto es como la alfombra roja de Hollywood, todos parecen maravillosos pero luego tienen una vida de mierda - Raquel F.S.",
+
 
 ]

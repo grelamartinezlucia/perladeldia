@@ -239,10 +239,18 @@ def generar_quiz():
     
     return palabra, todas_opciones, indice_correcto
 
-def obtener_sin_repetir(lista, usados_key):
-    """Obtiene un elemento aleatorio sin repetir hasta agotar la lista"""
+def obtener_sin_repetir(lista, usados_key, user_id=None):
+    """Obtiene un elemento aleatorio sin repetir hasta agotar la lista (por usuario)"""
     estado = cargar_estado()
-    usados = estado.get(usados_key, [])
+    
+    # Si hay user_id, usar historial por usuario
+    if user_id:
+        user_key = str(user_id)
+        if user_key not in estado:
+            estado[user_key] = {'palabras': [], 'refranes': [], 'frases': []}
+        usados = estado[user_key].get(usados_key, [])
+    else:
+        usados = estado.get(usados_key, [])
     
     disponibles = [item for item in lista if item not in usados]
     
@@ -252,7 +260,12 @@ def obtener_sin_repetir(lista, usados_key):
     
     elegido = random.choice(disponibles)
     usados.append(elegido)
-    estado[usados_key] = usados
+    
+    # Guardar en la estructura correcta
+    if user_id:
+        estado[user_key][usados_key] = usados
+    else:
+        estado[usados_key] = usados
     guardar_estado(estado)
     
     return elegido
@@ -286,11 +299,11 @@ def obtener_dia_internacional():
     hoy = datetime.now()
     return DIAS_INTERNACIONALES.get((hoy.month, hoy.day), None)
 
-def mensaje_diario():
-    """Genera el mensaje del día"""
-    palabra = obtener_sin_repetir(PALABRAS_CURIOSAS, 'palabras')
-    refran = obtener_sin_repetir(REFRANES, 'refranes')
-    frase = obtener_sin_repetir(obtener_todas_frases(), 'frases')
+def mensaje_diario(user_id=None):
+    """Genera el mensaje del día (personalizado por usuario si se proporciona user_id)"""
+    palabra = obtener_sin_repetir(PALABRAS_CURIOSAS, 'palabras', user_id)
+    refran = obtener_sin_repetir(REFRANES, 'refranes', user_id)
+    frase = obtener_sin_repetir(obtener_todas_frases(), 'frases', user_id)
     efemeride = obtener_efemeride()
     dia_internacional = obtener_dia_internacional()
     
@@ -327,10 +340,9 @@ def crear_botones_voto(fecha):
     return markup
 
 def enviar_mensaje():
-    """Envía el mensaje diario a todos los usuarios registrados"""
+    """Envía el mensaje diario a todos los usuarios registrados (personalizado por usuario)"""
     usuarios = cargar_usuarios()
     fecha = datetime.now().strftime("%Y-%m-%d")
-    mensaje = mensaje_diario()
     markup = crear_botones_voto(fecha)
     
     enviados = 0
@@ -342,6 +354,8 @@ def enviar_mensaje():
             continue
         
         try:
+            # Mensaje personalizado por usuario
+            mensaje = mensaje_diario(user_id)
             bot.send_message(
                 chat_id, 
                 mensaje, 
@@ -438,7 +452,7 @@ def send_now(message):
     fecha = datetime.now().strftime("%Y-%m-%d")
     bot.send_message(
         message.chat.id, 
-        mensaje_diario(), 
+        mensaje_diario(user_id), 
         parse_mode='Markdown',
         reply_markup=crear_botones_voto(fecha)
     )

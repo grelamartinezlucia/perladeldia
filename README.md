@@ -7,12 +7,13 @@ Bot de Telegram que envía contenido diario: palabras curiosas, refranes, frases
 | Comando | Descripción |
 |---------|-------------|
 | `/start` | Bienvenida y suscripción automática al mensaje diario |
-| `/ahora` | Recibe una perla instantánea sin esperar al día siguiente |
+| `/ahora` | Recibe una perla instantánea (máximo 3 al día) |
 | `/desafio` | Quiz de vocabulario con sistema de puntos |
 | `/ranking` | Muestra el ranking semanal y mensual del desafío |
 | `/sugerir [frase]` | Envía una sugerencia de frase mítica |
 | `/horoscopo [signo]` | Horóscopo irónico del día |
 | `/stats` | Estadísticas de uso del bot |
+| `/datos` | Muestra datos de contenido usado (palabras, refranes, frases) |
 | `/usuarios` | Lista de usuarios registrados |
 | `/michat` | Muestra tu Chat ID |
 
@@ -41,6 +42,7 @@ Los usuarios pueden votar la perla del día con 👍 o 👎.
 ### 3. Horóscopo Irónico
 Predicciones absurdas para cada signo zodiacal.
 - Predicciones genéricas mezcladas con específicas por signo
+- **Consistente por día**: Cada signo tiene la misma predicción durante todo el día
 - Uso: `/horoscopo aries`, `/horoscopo tauro`, etc.
 
 ### 4. Sistema de Sugerencias
@@ -73,7 +75,7 @@ bottelegram/
 
 | Archivo | Contenido |
 |---------|-----------|
-| `estado_usado.json` | Palabras/refranes/frases ya enviados (evita repeticiones) |
+| `estado_usado.json` | Historial por usuario de contenido ya enviado (evita repeticiones) |
 | `usuarios.json` | Registro de usuarios con chat_id para envíos diarios |
 | `votos.json` | Historial de votos por fecha |
 | `puntos.json` | Puntuaciones del desafío con historial por fecha |
@@ -177,3 +179,6 @@ horoscopo - Horóscopo irónico
 - El scheduler corre en el thread principal
 - Los intentos del desafío se guardan en memoria (se pierden si el bot reinicia)
 - Wikipedia API se usa como fallback para efemérides no curadas
+- **Almacenamiento Redis**: Todos los datos persisten en Upstash Redis
+- **Historial por usuario**: Cada usuario tiene su propio historial de contenido visto
+- **Límite /ahora**: Máximo 3 usos diarios con mensajes progresivos de advertencia

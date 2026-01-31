@@ -1,5 +1,6 @@
 # Horóscopo irónico - Predicciones absurdas
 import random
+from datetime import datetime
 
 SIGNOS = {
     "aries": "♈ Aries (21 mar - 19 abr)",
@@ -52,6 +53,31 @@ PREDICCIONES = [
     "Hoy es buen día para empezar una dieta. Mañana también lo será.",
     "Tu horóscopo estaba muy interesante pero se me olvidó.",
     "Los signos indican que deberías dejar de creer en los signos.",
+    "El universo conspira a tu favor. Pero hoy tenía el día libre.",
+    "Hoy conocerás a alguien especial. Tu yo del espejo cuenta.",
+    "Las cartas dicen que deberías dejar de mezclar la ropa de color.",
+    "Neptuno entra en tu casa del amor. Trae chanclas, el suelo está frío.",
+    "Hoy tendrás claridad mental después del tercer café.",
+    "Los astros recomiendan que no leas los términos y condiciones. Nunca.",
+    "Tu chakra del wifi está bloqueado. Reinicia el router.",
+    "Urano sugiere que pruebes cosas nuevas. Como levantarte antes de las 12.",
+    "Hoy es un día para reflexionar. Sobre por qué no hay nada en la nevera.",
+    "Las estrellas indican que ese mensaje sin responder seguirá sin responder.",
+    "Tu aura necesita recargarse. Prueba con una siesta de 4 horas.",
+    "Mercurio dice que ese ex va a escribirte. Mercurio es borde.",
+    "Hoy el karma te devolverá algo. Probablemente ese tupperware.",
+    "Los planetas favorecen las excusas creativas para no ir al gimnasio.",
+    "Venus dice que mereces amor. Pero primero, mereces desayunar.",
+    "Hoy descubrirás que ese ruido raro era tu estómago todo el tiempo.",
+    "El cosmos susurra tu nombre. Y luego se ríe. Sin motivo aparente.",
+    "Las estrellas predicen que llegarás tarde. Como siempre.",
+    "Hoy tendrás un momento de inspiración. Lo olvidarás en 3 segundos.",
+    "La luna nueva trae cambios. Como cambiar de postura en el sofá.",
+    "Tu signo solar dice que dejes de stalkear a tu ex. Tu signo lunar también.",
+    "Los astros confirman: esa notificación no era importante.",
+    "Hoy es buen día para invertir en criptomonedas. Es broma. Los astros también ríen.",
+    "El eclipse afectará tus finanzas. Culpa al eclipse de todo.",
+    "Marte entra en tu signo. Trae pizzas.",
 ]
 
 # Predicciones específicas por signo (opcionales, añaden variedad)
@@ -107,18 +133,23 @@ PREDICCIONES_SIGNO = {
 }
 
 def obtener_horoscopo(signo):
-    """Genera un horóscopo irónico para un signo"""
+    """Genera un horóscopo irónico para un signo (consistente por día)"""
     signo = signo.lower().strip()
     signo = signo.replace("é", "e").replace("á", "a")  # geminis, cancer
     
     if signo not in SIGNOS:
         return None, None
     
+    # Crear semilla determinista: fecha + signo = misma predicción todo el día
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    semilla = hash(f"{fecha_hoy}_{signo}") % (2**32)
+    rng = random.Random(semilla)
+    
     # 30% probabilidad de predicción específica del signo
-    if signo in PREDICCIONES_SIGNO and random.random() < 0.3:
-        prediccion = random.choice(PREDICCIONES_SIGNO[signo])
+    if signo in PREDICCIONES_SIGNO and rng.random() < 0.3:
+        prediccion = rng.choice(PREDICCIONES_SIGNO[signo])
     else:
-        prediccion = random.choice(PREDICCIONES)
+        prediccion = rng.choice(PREDICCIONES)
     
     return SIGNOS[signo], prediccion
 
