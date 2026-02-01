@@ -30,6 +30,7 @@ REDIS_PUNTOS = 'puntos'
 REDIS_USUARIOS = 'usuarios'
 REDIS_FRASES_APROBADAS = 'frases_aprobadas'
 REDIS_USOS_AHORA = 'usos_ahora'
+REDIS_USOS_DESAFIO = 'usos_desafio'
 
 def cargar_estado():
     """Carga el estado de elementos ya usados"""
@@ -144,7 +145,7 @@ def guardar_puntos(puntos):
 # Diccionario en memoria para trackear intentos por mensaje
 INTENTOS_DESAFIO = {}  # {"user_id_msg_id": intentos}
 
-def sumar_puntos(user_id, nombre, puntos_ganados):
+def sumar_puntos(user_id, nombre, puntos_ganados, username=None):
     """Suma puntos al usuario con historial por fecha"""
     if puntos_ganados <= 0:
         return 0
@@ -154,9 +155,10 @@ def sumar_puntos(user_id, nombre, puntos_ganados):
     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
     
     if user_key not in puntos:
-        puntos[user_key] = {'nombre': nombre, 'historial': []}
+        puntos[user_key] = {'nombre': nombre, 'username': username, 'historial': []}
     
     puntos[user_key]['nombre'] = nombre
+    puntos[user_key]['username'] = username
     puntos[user_key]['historial'].append({
         'fecha': fecha_hoy,
         'puntos': puntos_ganados
@@ -211,9 +213,9 @@ def obtener_ranking(periodo='semana'):
             pts = calcular_puntos_mes(user_key)
         
         if pts > 0:
-            ranking.append((user_key, data['nombre'], pts))
+            ranking.append((user_key, data['nombre'], data.get('username'), pts))
     
-    return sorted(ranking, key=lambda x: x[2], reverse=True)[:10]
+    return sorted(ranking, key=lambda x: x[3], reverse=True)[:10]
 
 def parsear_palabra(texto):
     """Separa 'Palabra: definición' en (palabra, definición)"""
@@ -424,12 +426,14 @@ def incrementar_usos_ahora(user_id):
     return usos[clave]
 
 MENSAJES_LIMITE_AHORA = [
-    # 4º intento - jocoso
-    "🙊 *¡Ey, ey, ey!* ¿Pero tú no tienes nada mejor que hacer?\n\nYa van 4 perlas hoy... Que el saber no ocupa lugar, pero la avaricia rompe el saco. 💰\n\n_Vuelve mañana, anda._",
-    # 5º intento - más cañero
+    # 2º intento - jocoso
+    "🙊 *¡Ey, ey, ey!* ¿Pero tú no tienes nada mejor que hacer?\n\nLa perla es una al día, avaricioso/a. Que el saber no ocupa lugar, pero la avaricia rompe el saco. 💰\n\n_Vuelve mañana, anda._",
+    # 3º intento - más cañero
     "😒 Mira, cielo... Esto ya es un poco obsesivo.\n\nLas perlas se disfrutan como el buen vino: *con moderación*. Tú estás bebiendo directamente de la botella.\n\n_¿No tienes un hobby o algo?_",
-    # 6º+ intento - amenaza
-    "🔥 *Último aviso.*\n\nComo vuelvas a darle, te voy a llamar cosas que no puedo escribir aquí porque Telegram me banea.\n\nPista: riman con _bontántula_ y _bimbrécil_.\n\n🚫 _Bot bloqueado hasta mañana (broma, pero párate ya)_"
+    # 4º intento - amenaza
+    "🔥 *Último aviso.*\n\nComo vuelvas a darle, te voy a llamar cosas que no puedo escribir aquí porque Telegram me banea.\n\nPista: riman con _bontántula_ y _bimbrécil_.\n\n🚫 _Bot bloqueado hasta mañana (broma, pero párate ya)_",
+    # 5º+ intento - sentencia final
+    "💀 *Ya está. Lo has conseguido.*\n\nHe consultado con los ancestros y todos coinciden: eres un caso perdido.\n\nTu nombre ha sido añadido a la lista de _personas sin autocontrol_. Felicidades.\n\n⚰️ _Aquí yace tu dignidad. Descanse en paz._"
 ]
 
 @bot.message_handler(commands=['ahora'])
@@ -437,12 +441,12 @@ def send_now(message):
     registrar_usuario(message.from_user)
     user_id = message.from_user.id
     
-    # Verificar límite diario
+    # Verificar límite diario (1 perla al día)
     usos = obtener_usos_ahora(user_id)
     
-    if usos >= 3:
-        # Ya ha usado 3 veces, mostrar mensaje según intento
-        intento_extra = usos - 3  # 0, 1, 2+
+    if usos >= 1:
+        # Ya usó su perla diaria, mostrar mensaje según intento
+        intento_extra = usos - 1  # 0, 1, 2, 3+
         idx = min(intento_extra, len(MENSAJES_LIMITE_AHORA) - 1)
         incrementar_usos_ahora(user_id)
         bot.reply_to(message, MENSAJES_LIMITE_AHORA[idx], parse_mode='Markdown')
@@ -520,6 +524,33 @@ def ver_sugerencias(message):
     markup.add(btn_saltar)
     
     bot.reply_to(message, texto, parse_mode='Markdown', reply_markup=markup)
+
+@bot.message_handler(commands=['resetpuntos'])
+def reset_puntos(message):
+    """Resetea los puntos del ranking (solo admin)"""
+    # Verificar que es admin (el que gestiona sugerencias)
+    puntos = cargar_puntos()
+    
+    if not puntos:
+        bot.reply_to(message, "📊 No hay puntos que resetear.")
+        return
+    
+    # Mostrar resumen antes de borrar
+    total_usuarios = len(puntos)
+    total_puntos = sum(
+        sum(h['puntos'] for h in u.get('historial', []))
+        for u in puntos.values()
+    )
+    
+    # Guardar vacío
+    guardar_puntos({})
+    
+    bot.reply_to(message, 
+        f"🗑️ *Puntos reseteados*\n\n"
+        f"Se eliminaron los datos de {total_usuarios} jugadores "
+        f"({total_puntos} puntos totales).\n\n"
+        f"_El ranking empieza de cero._",
+        parse_mode='Markdown')
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('sug_'))
 def handle_sugerencia(call):
@@ -632,28 +663,76 @@ def ver_horoscopo(message):
         signos = listar_signos()
         texto = "🔮 *HORÓSCOPO IRÓNICO*\n\n"
         texto += "Dime tu signo y te diré tu destino (absurdo)\n\n"
-        texto += "Usa: `/horoscopo [signo]`\n\n"
         texto += "*Signos disponibles:*\n"
         texto += ", ".join(signos)
-        bot.reply_to(message, texto, parse_mode='Markdown')
+        msg = bot.reply_to(message, texto, parse_mode='Markdown')
+        bot.register_next_step_handler(msg, procesar_signo)
         return
     
-    signo_nombre, prediccion = obtener_horoscopo(args)
+    mostrar_horoscopo(message.chat.id, args, message.message_id)
+
+def procesar_signo(message):
+    """Procesa el signo enviado por el usuario"""
+    if message.text and message.text.startswith('/'):
+        return  # Si escribe otro comando, ignorar
+    mostrar_horoscopo(message.chat.id, message.text, None)
+
+def mostrar_horoscopo(chat_id, signo, reply_to=None):
+    """Muestra el horóscopo para un signo"""
+    signo_nombre, prediccion = obtener_horoscopo(signo)
     
     if not signo_nombre:
-        bot.reply_to(message, "❌ Signo no reconocido. Prueba con: aries, tauro, geminis, cancer, leo, virgo, libra, escorpio, sagitario, capricornio, acuario, piscis")
+        # Signo no válido: darle una predicción misteriosa igualmente
+        from horoscopo import PREDICCIONES
+        prediccion_random = random.choice(PREDICCIONES)
+        texto = f"🔮 *HORÓSCOPO IRÓNICO*\n\n"
+        texto += f"*¿{signo.title()}?* Eso no es un signo... pero presiento lo que el destino tiene preparado para ti:\n\n"
+        texto += f"_{prediccion_random}_"
+        bot.send_message(chat_id, texto, parse_mode='Markdown')
         return
     
     texto = f"🔮 *HORÓSCOPO IRÓNICO*\n\n"
     texto += f"*{signo_nombre}*\n\n"
     texto += f"_{prediccion}_"
     
-    bot.reply_to(message, texto, parse_mode='Markdown')
+    bot.send_message(chat_id, texto, parse_mode='Markdown')
+
+def ya_jugo_desafio_hoy(user_id):
+    """Verifica si el usuario ya jugó el desafío hoy"""
+    usos = storage.obtener_dict(REDIS_USOS_DESAFIO)
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    clave = f"{user_id}_{fecha_hoy}"
+    return usos.get(clave, False)
+
+def marcar_desafio_jugado(user_id):
+    """Marca que el usuario jugó el desafío hoy"""
+    usos = storage.obtener_dict(REDIS_USOS_DESAFIO)
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    clave = f"{user_id}_{fecha_hoy}"
+    
+    # Limpiar usos de días anteriores
+    usos = {k: v for k, v in usos.items() if k.endswith(fecha_hoy)}
+    
+    usos[clave] = True
+    storage.guardar_dict(REDIS_USOS_DESAFIO, usos)
 
 @bot.message_handler(commands=['desafio'])
 def enviar_desafio(message):
-    """Envía un desafío de vocabulario"""
+    """Envía un desafío de vocabulario (1 vez al día)"""
     registrar_usuario(message.from_user)
+    user_id = message.from_user.id
+    
+    # Verificar si ya jugó hoy
+    if ya_jugo_desafio_hoy(user_id):
+        bot.reply_to(message, 
+            "🎯 *¡Ya jugaste hoy!*\n\n"
+            "El desafío es una vez al día para que sea más especial.\n"
+            "Vuelve mañana para poner a prueba tu vocabulario.\n\n"
+            "_Mientras tanto, ¿qué tal un /horoscopo?_",
+            parse_mode='Markdown')
+        return
+    
+    marcar_desafio_jugado(user_id)
     palabra, opciones, indice_correcto = generar_quiz()
     
     letras = ['A', 'B', 'C', 'D']
@@ -699,7 +778,8 @@ def handle_desafio(call):
         else:
             pts_ganados = 0
         
-        puntos_semana = sumar_puntos(user_id, nombre, pts_ganados)
+        username = call.from_user.username
+        puntos_semana = sumar_puntos(user_id, nombre, pts_ganados, username)
         
         if pts_ganados > 0:
             msg_pts = f"+{pts_ganados} pts (semana: {puntos_semana})"
@@ -734,14 +814,15 @@ def ver_ranking(message):
     
     medallas = ['🥇', '🥈', '🥉']
     texto = "🏆 *RANKING DEL DESAFÍO*\n"
-    texto += "_3 pts a la primera, 1 pt a la segunda_\n\n"
+    texto += "_3 pts al primer intento, 1 pt al segundo_\n\n"
     
     # Ranking semanal
     texto += "📅 *ESTA SEMANA:*\n"
     if ranking_semana:
-        for i, (user_id, nombre, pts) in enumerate(ranking_semana[:5]):
+        for i, (user_id, nombre, username, pts) in enumerate(ranking_semana[:5]):
             medalla = medallas[i] if i < 3 else f"{i+1}."
-            texto += f"{medalla} {nombre}: *{pts}* pts\n"
+            nombre_display = f"{nombre} (@{username})" if username else nombre
+            texto += f"{medalla} {nombre_display}: *{pts}* pts\n"
     else:
         texto += "_Sin puntuaciones aún_\n"
     
@@ -749,9 +830,10 @@ def ver_ranking(message):
     mes_nombre = datetime.now().strftime("%B").capitalize()
     texto += f"\n📆 *{mes_nombre.upper()}:*\n"
     if ranking_mes:
-        for i, (user_id, nombre, pts) in enumerate(ranking_mes[:5]):
+        for i, (user_id, nombre, username, pts) in enumerate(ranking_mes[:5]):
             medalla = medallas[i] if i < 3 else f"{i+1}."
-            texto += f"{medalla} {nombre}: *{pts}* pts\n"
+            nombre_display = f"{nombre} (@{username})" if username else nombre
+            texto += f"{medalla} {nombre_display}: *{pts}* pts\n"
     else:
         texto += "_Sin puntuaciones aún_\n"
     
@@ -796,18 +878,20 @@ def ver_stats(message):
 
 @bot.message_handler(commands=['datos'])
 def ver_datos(message):
-    """Muestra datos de contenido usado"""
+    """Muestra datos de contenido usado (del usuario que pregunta)"""
     estado = cargar_estado()
     usuarios = cargar_usuarios()
     sugerencias = cargar_sugerencias()
     frases_aprobadas = cargar_frases_aprobadas()
+    user_id = str(message.from_user.id)
     
-    # Conteos
-    palabras_usadas = len(estado.get('palabras', []))
+    # Conteos del usuario actual
+    estado_usuario = estado.get(user_id, {'palabras': [], 'refranes': [], 'frases': []})
+    palabras_usadas = len(estado_usuario.get('palabras', []))
     palabras_total = len(PALABRAS_CURIOSAS)
-    refranes_usados = len(estado.get('refranes', []))
+    refranes_usados = len(estado_usuario.get('refranes', []))
     refranes_total = len(REFRANES)
-    frases_usadas = len(estado.get('frases', []))
+    frases_usadas = len(estado_usuario.get('frases', []))
     frases_total = len(obtener_todas_frases())
     
     usuarios_total = len(usuarios)

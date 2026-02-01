@@ -7,8 +7,8 @@ Bot de Telegram que envía contenido diario: palabras curiosas, refranes, frases
 | Comando | Descripción |
 |---------|-------------|
 | `/start` | Bienvenida y suscripción automática al mensaje diario |
-| `/ahora` | Recibe una perla instantánea (máximo 3 al día) |
-| `/desafio` | Quiz de vocabulario con sistema de puntos |
+| `/ahora` | Recibe una perla instantánea (1 al día) |
+| `/desafio` | Quiz de vocabulario (1 al día) |
 | `/ranking` | Muestra el ranking semanal y mensual del desafío |
 | `/sugerir [frase]` | Envía una sugerencia de frase mítica |
 | `/horoscopo [signo]` | Horóscopo irónico del día |
@@ -16,6 +16,7 @@ Bot de Telegram que envía contenido diario: palabras curiosas, refranes, frases
 | `/datos` | Muestra datos de contenido usado (palabras, refranes, frases) |
 | `/usuarios` | Lista de usuarios registrados |
 | `/michat` | Muestra tu Chat ID |
+| `/resetpuntos` | (Admin) Resetea el ranking de puntos |
 
 ---
 
@@ -181,4 +182,6 @@ horoscopo - Horóscopo irónico
 - Wikipedia API se usa como fallback para efemérides no curadas
 - **Almacenamiento Redis**: Todos los datos persisten en Upstash Redis
 - **Historial por usuario**: Cada usuario tiene su propio historial de contenido visto
-- **Límite /ahora**: Máximo 3 usos diarios con mensajes progresivos de advertencia
+- **Límite /ahora**: 1 uso diario con mensajes progresivos de advertencia
+- **Límite /desafio**: 1 uso diario por usuario
+- **Horóscopo conversacional**: El bot espera el signo si no se proporciona
