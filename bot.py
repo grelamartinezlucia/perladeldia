@@ -225,18 +225,23 @@ def parsear_palabra(texto):
     return texto, ""
 
 def generar_quiz():
-    """Genera un quiz con una palabra y 4 opciones"""
-    palabra_completa = random.choice(PALABRAS_CURIOSAS)
+    """Genera un quiz con una palabra y 4 opciones (mismo desafío para todos cada día)"""
+    # Semilla determinista: misma palabra para todos en el mismo día
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    semilla = hash(f"desafio_{fecha_hoy}") % (2**32)
+    rng = random.Random(semilla)
+    
+    palabra_completa = rng.choice(PALABRAS_CURIOSAS)
     palabra, definicion_correcta = parsear_palabra(palabra_completa)
     
     # Obtener 3 definiciones incorrectas
     otras = [p for p in PALABRAS_CURIOSAS if p != palabra_completa]
-    incorrectas = random.sample(otras, min(3, len(otras)))
+    incorrectas = rng.sample(otras, min(3, len(otras)))
     opciones_incorrectas = [parsear_palabra(p)[1] for p in incorrectas]
     
-    # Mezclar opciones
+    # Mezclar opciones (con la misma semilla para consistencia)
     todas_opciones = [definicion_correcta] + opciones_incorrectas
-    random.shuffle(todas_opciones)
+    rng.shuffle(todas_opciones)
     indice_correcto = todas_opciones.index(definicion_correcta)
     
     return palabra, todas_opciones, indice_correcto
@@ -821,8 +826,8 @@ def ver_ranking(message):
     if ranking_semana:
         for i, (user_id, nombre, username, pts) in enumerate(ranking_semana[:5]):
             medalla = medallas[i] if i < 3 else f"{i+1}."
-            nombre_display = f"{nombre} (@{username})" if username else nombre
-            texto += f"{medalla} {nombre_display}: *{pts}* pts\n"
+            nombre_display = f"{nombre} ({username})" if username else nombre
+            texto += f"{medalla} {nombre_display}: {pts} pts\n"
     else:
         texto += "_Sin puntuaciones aún_\n"
     
@@ -832,8 +837,8 @@ def ver_ranking(message):
     if ranking_mes:
         for i, (user_id, nombre, username, pts) in enumerate(ranking_mes[:5]):
             medalla = medallas[i] if i < 3 else f"{i+1}."
-            nombre_display = f"{nombre} (@{username})" if username else nombre
-            texto += f"{medalla} {nombre_display}: *{pts}* pts\n"
+            nombre_display = f"{nombre} ({username})" if username else nombre
+            texto += f"{medalla} {nombre_display}: {pts} pts\n"
     else:
         texto += "_Sin puntuaciones aún_\n"
     
