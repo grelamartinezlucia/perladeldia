@@ -241,8 +241,10 @@ def parsear_palabra(texto):
 def generar_quiz():
     """Genera un quiz con una palabra y 4 opciones (mismo desafío para todos cada día)"""
     # Semilla determinista: misma palabra para todos en el mismo día
+    # Usamos hashlib en lugar de hash() porque hash() no es determinista entre reinicios
+    import hashlib
     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
-    semilla = hash(f"desafio_{fecha_hoy}") % (2**32)
+    semilla = int(hashlib.md5(f"desafio_{fecha_hoy}".encode()).hexdigest(), 16) % (2**32)
     rng = random.Random(semilla)
     
     palabra_completa = rng.choice(PALABRAS_CURIOSAS)
@@ -1164,7 +1166,7 @@ def enviar_desafio(message):
             parse_mode='Markdown')
         return
     
-    marcar_desafio_jugado(user_id)
+    # NO marcamos aquí - se marca al primer intento en el callback
     palabra, opciones, indice_correcto = generar_quiz()
     
     letras = ['A', 'B', 'C', 'D']
@@ -1196,6 +1198,8 @@ def handle_desafio(call):
     # Contar intento
     if clave_intento not in INTENTOS_DESAFIO:
         INTENTOS_DESAFIO[clave_intento] = 0
+        # Marcar como jugado en el primer intento (no al iniciar el quiz)
+        marcar_desafio_jugado(user_id)
     INTENTOS_DESAFIO[clave_intento] += 1
     intento = INTENTOS_DESAFIO[clave_intento]
     
