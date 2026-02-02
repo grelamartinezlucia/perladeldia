@@ -11,7 +11,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from dias_internacionales import DIAS_INTERNACIONALES
 from horoscopo import obtener_horoscopo, listar_signos
-from contenido import PALABRAS_CURIOSAS, REFRANES, FRASES_AMIGOS, MITOS_DESMONTADOS
+from contenido import PALABRAS_CURIOSAS, REFRANES, FRASES_AMIGOS, MITOS_DESMONTADOS, PERLAS_OSCURAS
 from efemerides import EFEMERIDES
 import storage
 
@@ -31,6 +31,8 @@ REDIS_USUARIOS = 'usuarios'
 REDIS_FRASES_APROBADAS = 'frases_aprobadas'
 REDIS_USOS_AHORA = 'usos_ahora'
 REDIS_USOS_DESAFIO = 'usos_desafio'
+REDIS_MODO_OSCURO = 'modo_oscuro'
+REDIS_USOS_OSCURA = 'usos_oscura'
 
 def cargar_estado():
     """Carga el estado de elementos ya usados"""
@@ -773,6 +775,183 @@ def broadcast_mensaje(message):
         f"✅ Enviados: {enviados}\n"
         f"❌ Errores: {errores}",
         parse_mode='Markdown')
+
+# === PERLA OSCURA ===
+
+def obtener_modo_oscuro():
+    """Obtiene usuarios con modo oscuro activado"""
+    return storage.obtener_dict(REDIS_MODO_OSCURO) or {}
+
+def guardar_modo_oscuro(modo):
+    """Guarda usuarios con modo oscuro"""
+    storage.guardar_dict(REDIS_MODO_OSCURO, modo)
+
+def tiene_modo_oscuro(user_id):
+    """Verifica si el usuario tiene modo oscuro activado"""
+    modo = obtener_modo_oscuro()
+    return modo.get(str(user_id), False)
+
+def toggle_modo_oscuro(user_id):
+    """Activa/desactiva modo oscuro para un usuario"""
+    modo = obtener_modo_oscuro()
+    user_key = str(user_id)
+    modo[user_key] = not modo.get(user_key, False)
+    guardar_modo_oscuro(modo)
+    return modo[user_key]
+
+def obtener_usos_oscura(user_id):
+    """Obtiene cuántas perlas oscuras ha pedido hoy"""
+    usos = storage.obtener_dict(REDIS_USOS_OSCURA) or {}
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    clave = f"{user_id}_{fecha_hoy}"
+    return usos.get(clave, 0)
+
+def incrementar_usos_oscura(user_id):
+    """Incrementa el contador de perlas oscuras del día"""
+    usos = storage.obtener_dict(REDIS_USOS_OSCURA) or {}
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    clave = f"{user_id}_{fecha_hoy}"
+    
+    # Limpiar usos antiguos
+    usos = {k: v for k, v in usos.items() if k.endswith(fecha_hoy)}
+    
+    usos[clave] = usos.get(clave, 0) + 1
+    storage.guardar_dict(REDIS_USOS_OSCURA, usos)
+    return usos[clave]
+
+@bot.message_handler(commands=['perlaoscura'])
+def perla_oscura(message):
+    """Muestra una perla oscura (requiere consentimiento)"""
+    user_id = message.from_user.id
+    
+    # Verificar si tiene modo oscuro activado
+    if not tiene_modo_oscuro(user_id):
+        markup = types.InlineKeyboardMarkup()
+        btn_activar = types.InlineKeyboardButton("😈 Sí, actívalo", callback_data="oscuro_activar")
+        btn_cancelar = types.InlineKeyboardButton("😇 No, mejor no", callback_data="oscuro_cancelar")
+        markup.add(btn_activar, btn_cancelar)
+        
+        bot.reply_to(message,
+            "🌑 *PERLA OSCURA*\n\n"
+            "Este contenido es irónico, cínico y ácido.\n"
+            "Puede herir sensibilidades.\n\n"
+            "¿Estás seguro/a de que quieres activar el *modo oscuro*? 😈",
+            parse_mode='Markdown',
+            reply_markup=markup)
+        return
+    
+    # Verificar límite diario (2 perlas por día)
+    usos = obtener_usos_oscura(user_id)
+    if usos >= 2:
+        # Incrementar para contar intentos extra
+        intentos = incrementar_usos_oscura(user_id)
+        
+        if intentos >= 4:
+            bot.reply_to(message,
+                "⚫ *NO.*\n\n"
+                "La oscuridad ha hablado. Y ha dicho que pares.\n\n"
+                "Vuelve. Mañana.",
+                parse_mode='Markdown')
+        else:
+            bot.reply_to(message,
+                "🌑 *Se acabó la oscuridad por hoy*\n\n"
+                "Ya has recibido tus 2 perlas oscuras diarias.\n"
+                "La oscuridad también necesita descansar. 😴\n\n"
+                "_Vuelve mañana para más cinismo reconfortante._",
+                parse_mode='Markdown')
+        return
+    
+    # Tiene modo oscuro y no ha alcanzado el límite
+    incrementar_usos_oscura(user_id)
+    perla = random.choice(PERLAS_OSCURAS)
+    usos_restantes = 1 - usos  # 0 usos = quedan 2, 1 uso = queda 1
+    
+    markup = types.InlineKeyboardMarkup()
+    if usos_restantes > 0:
+        btn_otra = types.InlineKeyboardButton(f"🔄 Otra ({usos_restantes} restante)", callback_data="oscuro_otra")
+        markup.add(btn_otra)
+    btn_desactivar = types.InlineKeyboardButton("😇 Desactivar modo", callback_data="oscuro_desactivar")
+    markup.add(btn_desactivar)
+    
+    bot.reply_to(message,
+        f"🌑 *PERLA OSCURA*\n\n_{perla}_",
+        parse_mode='Markdown',
+        reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('oscuro_'))
+def handle_modo_oscuro(call):
+    """Maneja las acciones del modo oscuro"""
+    user_id = call.from_user.id
+    accion = call.data.replace('oscuro_', '')
+    
+    if accion == 'activar':
+        toggle_modo_oscuro(user_id)
+        incrementar_usos_oscura(user_id)  # Primera perla cuenta
+        perla = random.choice(PERLAS_OSCURAS)
+        
+        markup = types.InlineKeyboardMarkup()
+        btn_otra = types.InlineKeyboardButton("🔄 Otra (1 restante)", callback_data="oscuro_otra")
+        btn_desactivar = types.InlineKeyboardButton("😇 Desactivar modo", callback_data="oscuro_desactivar")
+        markup.add(btn_otra)
+        markup.add(btn_desactivar)
+        
+        bot.edit_message_text(
+            f"😈 *Modo oscuro activado*\n\n🌑 *Tu primera perla oscura:*\n\n_{perla}_",
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode='Markdown',
+            reply_markup=markup)
+        bot.answer_callback_query(call.id, "😈 Bienvenido al lado oscuro")
+    
+    elif accion == 'cancelar':
+        bot.edit_message_text(
+            "😇 *Sabia decisión*\n\nLa ignorancia es felicidad... o eso dicen.",
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode='Markdown')
+        bot.answer_callback_query(call.id, "😇 Quizás otro día")
+    
+    elif accion == 'otra':
+        if not tiene_modo_oscuro(user_id):
+            bot.answer_callback_query(call.id, "⛔ Modo oscuro no activado")
+            return
+        
+        # Verificar límite diario
+        usos = obtener_usos_oscura(user_id)
+        if usos >= 2:
+            bot.edit_message_text(
+                "🌑 *Se acabó la oscuridad por hoy*\n\n"
+                "Ya has recibido tus 2 perlas oscuras diarias.\n\n"
+                "_Vuelve mañana para más cinismo reconfortante._",
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                parse_mode='Markdown')
+            bot.answer_callback_query(call.id, "😴 Límite alcanzado")
+            return
+        
+        incrementar_usos_oscura(user_id)
+        perla = random.choice(PERLAS_OSCURAS)
+        
+        markup = types.InlineKeyboardMarkup()
+        btn_desactivar = types.InlineKeyboardButton("😇 Desactivar modo", callback_data="oscuro_desactivar")
+        markup.add(btn_desactivar)
+        
+        bot.edit_message_text(
+            f"🌑 *PERLA OSCURA* _(última del día)_\n\n_{perla}_",
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode='Markdown',
+            reply_markup=markup)
+        bot.answer_callback_query(call.id, "🌑")
+    
+    elif accion == 'desactivar':
+        toggle_modo_oscuro(user_id)
+        bot.edit_message_text(
+            "😇 *Modo oscuro desactivado*\n\nHas vuelto a la luz. Bienvenido/a de vuelta.",
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode='Markdown')
+        bot.answer_callback_query(call.id, "😇 Has vuelto a la luz")
 
 @bot.message_handler(commands=['resetpuntos'])
 def reset_puntos(message):
