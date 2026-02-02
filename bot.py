@@ -822,7 +822,7 @@ def ver_ranking(message):
     texto += "_3 pts al primer intento, 1 pt al segundo_\n\n"
     
     # Ranking semanal
-    texto += "📅 *ESTA SEMANA:*\n"
+    texto += "📅 ESTA SEMANA:\n"
     if ranking_semana:
         for i, (user_id, nombre, username, pts) in enumerate(ranking_semana[:5]):
             medalla = medallas[i] if i < 3 else f"{i+1}."
@@ -832,8 +832,10 @@ def ver_ranking(message):
         texto += "_Sin puntuaciones aún_\n"
     
     # Ranking mensual
-    mes_nombre = datetime.now().strftime("%B").capitalize()
-    texto += f"\n📆 *{mes_nombre.upper()}:*\n"
+    meses_es = {1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL', 5: 'MAYO', 6: 'JUNIO',
+                7: 'JULIO', 8: 'AGOSTO', 9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'}
+    mes_nombre = meses_es[datetime.now().month]
+    texto += f"\n📆 {mes_nombre}:\n"
     if ranking_mes:
         for i, (user_id, nombre, username, pts) in enumerate(ranking_mes[:5]):
             medalla = medallas[i] if i < 3 else f"{i+1}."
