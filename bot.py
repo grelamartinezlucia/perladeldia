@@ -145,24 +145,36 @@ def guardar_puntos(puntos):
 # Diccionario en memoria para trackear intentos por mensaje
 INTENTOS_DESAFIO = {}  # {"user_id_msg_id": intentos}
 
-def sumar_puntos(user_id, nombre, puntos_ganados, username=None):
+def sumar_puntos(user_id, nombre, puntos_ganados, username=None, intento=1):
     """Suma puntos al usuario con historial por fecha"""
-    if puntos_ganados <= 0:
-        return 0
-    
     puntos = cargar_puntos()
     user_key = str(user_id)
     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
     
     if user_key not in puntos:
-        puntos[user_key] = {'nombre': nombre, 'username': username, 'historial': []}
+        puntos[user_key] = {'nombre': nombre, 'username': username, 'historial': [], 'stats': {'jugados': 0, 'aciertos_1': 0, 'aciertos_2': 0, 'aciertos_3plus': 0}}
     
     puntos[user_key]['nombre'] = nombre
     puntos[user_key]['username'] = username
-    puntos[user_key]['historial'].append({
-        'fecha': fecha_hoy,
-        'puntos': puntos_ganados
-    })
+    
+    # Inicializar stats si no existe (para usuarios antiguos)
+    if 'stats' not in puntos[user_key]:
+        puntos[user_key]['stats'] = {'jugados': 0, 'aciertos_1': 0, 'aciertos_2': 0, 'aciertos_3plus': 0}
+    
+    # Actualizar estadísticas
+    puntos[user_key]['stats']['jugados'] += 1
+    if intento == 1:
+        puntos[user_key]['stats']['aciertos_1'] += 1
+    elif intento == 2:
+        puntos[user_key]['stats']['aciertos_2'] += 1
+    else:
+        puntos[user_key]['stats']['aciertos_3plus'] += 1
+    
+    if puntos_ganados > 0:
+        puntos[user_key]['historial'].append({
+            'fecha': fecha_hoy,
+            'puntos': puntos_ganados
+        })
     
     guardar_puntos(puntos)
     return calcular_puntos_semana(user_key)
@@ -501,15 +513,15 @@ def enviar_resumen_mensual():
 # Programar envío diario a las 9:00 AM
 schedule.every().day.at("09:00").do(enviar_mensaje)
 
-# Resumen semanal: lunes a las 8:00 (1 hora antes de la perla)
-schedule.every().monday.at("08:00").do(enviar_resumen_semanal)
+# Resumen semanal: lunes a las 9:00 (junto con la perla)
+schedule.every().monday.at("09:00").do(enviar_resumen_semanal)
 
-# Resumen mensual: día 1 a las 8:00 (se verifica dentro de la función)
+# Resumen mensual: día 1 a las 9:00 (se verifica dentro de la función)
 def check_resumen_mensual():
     if datetime.now().day == 1:
         enviar_resumen_mensual()
 
-schedule.every().day.at("08:00").do(check_resumen_mensual)
+schedule.every().day.at("09:00").do(check_resumen_mensual)
 
 # Recordatorio del desafío a las 20:00 (11h después de la perla)
 def enviar_recordatorio_desafio():
@@ -966,7 +978,7 @@ def handle_desafio(call):
             pts_ganados = 0
         
         username = call.from_user.username
-        puntos_semana = sumar_puntos(user_id, nombre, pts_ganados, username)
+        puntos_semana = sumar_puntos(user_id, nombre, pts_ganados, username, intento)
         
         if pts_ganados > 0:
             msg_pts = f"+{pts_ganados} pts (semana: {puntos_semana})"
@@ -1025,6 +1037,70 @@ def ver_ranking(message):
             texto += f"{medalla} {nombre_display}: {pts} pts\n"
     else:
         texto += "_Sin puntuaciones aún_\n"
+    
+    bot.reply_to(message, texto, parse_mode='Markdown')
+
+@bot.message_handler(commands=['misestadisticas'])
+def ver_mis_estadisticas(message):
+    """Muestra estadísticas personales del usuario"""
+    user_id = str(message.from_user.id)
+    puntos = cargar_puntos()
+    
+    if user_id not in puntos:
+        bot.reply_to(message, "📊 Aún no tienes estadísticas. ¡Usa /desafio para empezar a jugar!")
+        return
+    
+    data = puntos[user_id]
+    nombre = data.get('nombre', 'Usuario')
+    historial = data.get('historial', [])
+    stats = data.get('stats', {'jugados': 0, 'aciertos_1': 0, 'aciertos_2': 0, 'aciertos_3plus': 0})
+    
+    # Puntos totales
+    pts_totales = sum(r['puntos'] for r in historial)
+    pts_semana = calcular_puntos_semana(user_id)
+    pts_mes = calcular_puntos_mes(user_id)
+    
+    # Posición en rankings
+    ranking_semana = obtener_ranking('semana')
+    ranking_mes = obtener_ranking('mes')
+    pos_semana = next((i+1 for i, r in enumerate(ranking_semana) if r[0] == user_id), '-')
+    pos_mes = next((i+1 for i, r in enumerate(ranking_mes) if r[0] == user_id), '-')
+    
+    # Porcentaje de aciertos a la primera
+    jugados = stats.get('jugados', 0)
+    aciertos_1 = stats.get('aciertos_1', 0)
+    aciertos_2 = stats.get('aciertos_2', 0)
+    pct_primera = int((aciertos_1 / jugados) * 100) if jugados > 0 else 0
+    pct_segunda = int((aciertos_2 / jugados) * 100) if jugados > 0 else 0
+    
+    # Racha actual (días consecutivos jugando)
+    fechas_jugadas = sorted(set(r['fecha'] for r in historial), reverse=True)
+    racha = 0
+    hoy = datetime.now().date()
+    for i, fecha_str in enumerate(fechas_jugadas):
+        fecha = datetime.strptime(fecha_str, "%Y-%m-%d").date()
+        esperada = hoy - timedelta(days=i)
+        if fecha == esperada:
+            racha += 1
+        else:
+            break
+    
+    # Construir mensaje
+    texto = f"📊 *ESTADÍSTICAS DE {nombre.upper()}*\n\n"
+    texto += f"🏆 *Puntos totales:* {pts_totales}\n"
+    texto += f"📅 *Esta semana:* {pts_semana} pts (#{pos_semana})\n"
+    texto += f"📆 *Este mes:* {pts_mes} pts (#{pos_mes})\n\n"
+    texto += f"🎯 *Desafíos jugados:* {jugados}\n"
+    texto += f"✅ *Aciertos a la 1ª:* {aciertos_1} ({pct_primera}%)\n"
+    texto += f"🔄 *Aciertos a la 2ª:* {aciertos_2} ({pct_segunda}%)\n\n"
+    texto += f"🔥 *Racha actual:* {racha} día{'s' if racha != 1 else ''}\n"
+    
+    if racha >= 7:
+        texto += "\n🌟 _¡Impresionante racha! Sigue así._"
+    elif racha >= 3:
+        texto += "\n💪 _¡Buena racha! No la rompas._"
+    elif racha == 0:
+        texto += "\n😴 _Sin racha activa. ¡Juega hoy!_"
     
     bot.reply_to(message, texto, parse_mode='Markdown')
 
@@ -1096,18 +1172,16 @@ def ver_datos(message):
     texto += "*Contenido usado:*\n"
     texto += f"📚 Palabras: {palabras_usadas}/{palabras_total}\n"
     texto += f"🎯 Refranes: {refranes_usados}/{refranes_total}\n"
-    texto += f"😂 Frases: {frases_usadas}/{frases_total}\n\n"
-    
-    # Progreso visual
-    def barra(usado, total):
-        pct = int((usado / total) * 10) if total > 0 else 0
-        return '▓' * pct + '░' * (10 - pct)
-    
-    texto += f"`{barra(palabras_usadas, palabras_total)}` Palabras\n"
-    texto += f"`{barra(refranes_usados, refranes_total)}` Refranes\n"
-    texto += f"`{barra(frases_usadas, frases_total)}` Frases"
+    texto += f"😂 Frases: {frases_usadas}/{frases_total}"
     
     bot.reply_to(message, texto, parse_mode='Markdown')
+
+def escapar_markdown(texto):
+    """Escapa caracteres especiales de Markdown"""
+    caracteres = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for c in caracteres:
+        texto = texto.replace(c, f'\\{c}')
+    return texto
 
 @bot.message_handler(commands=['usuarios'])
 def ver_usuarios(message):
@@ -1119,20 +1193,21 @@ def ver_usuarios(message):
             bot.reply_to(message, "👥 Aún no hay usuarios registrados.")
             return
         
-        texto = f"👥 *USUARIOS DEL BOT* ({len(usuarios)})\n\n"
+        texto = f"👥 *USUARIOS DEL BOT* \\({len(usuarios)}\\)\n\n"
         for user_id, data in list(usuarios.items())[-20:]:  # Últimos 20
-            nombre = data.get('nombre', 'Sin nombre')
+            nombre = escapar_markdown(data.get('nombre', 'Sin nombre'))
             username = data.get('username')
-            ultima = data.get('ultima_vez', '?')
+            ultima = escapar_markdown(data.get('ultima_vez', '?'))
             if username:
-                texto += f"• {nombre} (@{username})\n  └ Última vez: {ultima}\n"
+                username_escaped = escapar_markdown(username)
+                texto += f"• {nombre} \\(@{username_escaped}\\)\n  └ Última vez: {ultima}\n"
             else:
                 texto += f"• {nombre}\n  └ Última vez: {ultima}\n"
         
         if len(usuarios) > 20:
-            texto += f"\n_...y {len(usuarios) - 20} más_"
+            texto += f"\n_\\.\\.\\.y {len(usuarios) - 20} más_"
         
-        bot.reply_to(message, texto, parse_mode='Markdown')
+        bot.reply_to(message, texto, parse_mode='MarkdownV2')
     except Exception as e:
         print(f"Error en /usuarios: {e}")
         bot.reply_to(message, f"❌ Error: {e}")

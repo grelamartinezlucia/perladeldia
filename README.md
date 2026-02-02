@@ -14,6 +14,7 @@ Bot de Telegram que envía contenido diario: palabras curiosas, refranes, frases
 | `/horoscopo [signo]` | Horóscopo irónico del día |
 | `/stats` | Estadísticas de uso del bot |
 | `/datos` | Muestra datos de contenido usado (palabras, refranes, frases) |
+| `/misestadisticas` | Estadísticas personales: puntos, racha, posición, % aciertos |
 | `/usuarios` | Lista de usuarios registrados |
 | `/michat` | Muestra tu Chat ID |
 | `/resetpuntos` | (Admin) Resetea el ranking de puntos |
@@ -40,8 +41,8 @@ Los usuarios pueden votar la perla del día con 👍 o 👎.
   - 3º+ intentos: **0 puntos**
 - Rankings semanales (lunes a domingo) y mensuales
 - **Notificaciones automáticas**:
-  - **Lunes 8:00**: Resumen semanal del ranking (mensajes jocosos rotativos)
-  - **Día 1 del mes 8:00**: Resumen mensual del ranking
+  - **Lunes 9:00**: Resumen semanal del ranking (mensajes jocosos rotativos)
+  - **Día 1 del mes 9:00**: Resumen mensual del ranking
   - **20:00**: Recordatorio a quienes no han jugado el desafío ese día (15 mensajes rotativos)
 
 ### 3. Horóscopo Irónico
