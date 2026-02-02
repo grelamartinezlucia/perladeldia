@@ -376,8 +376,190 @@ def enviar_mensaje():
     
     print(f"Mensaje diario enviado: {enviados} OK, {errores} errores - {datetime.now()}")
 
+def enviar_resumen_semanal():
+    """Envía el resumen del ranking semanal (lunes a las 8:00)"""
+    # Calcular ranking de la semana anterior
+    ranking = obtener_ranking('semana')
+    
+    if not ranking:
+        print("Resumen semanal: sin puntuaciones")
+        return
+    
+    medallas = ['🥇', '🥈', '🥉']
+    texto = "📊 *RESUMEN SEMANAL DEL DESAFÍO*\n"
+    texto += "_Los resultados están... y hay drama_\n\n"
+    
+    for i, (user_id, nombre, username, pts) in enumerate(ranking[:5]):
+        medalla = medallas[i] if i < 3 else f"{i+1}."
+        nombre_display = f"{nombre} ({username})" if username else nombre
+        texto += f"{medalla} {nombre_display}: {pts} pts\n"
+    
+    if ranking:
+        # Detectar empate en primer puesto
+        pts_ganador = ranking[0][3]
+        empatados = [r[1] for r in ranking if r[3] == pts_ganador]
+        
+        # Mensajes que se alternan cada semana
+        mensajes_ganador = [
+            "se lleva la corona esta semana. Que no se le suba a la cabeza.",
+            "arrasa esta semana. A este ritmo va a necesitar una vitrina.",
+            "lo ha petado esta semana. Aplausos lentos.",
+            "domina el cotarro. Inclinemos la cabeza ante tanta sabiduría.",
+            "se corona esta semana. El resto, a llorar al río.",
+            "triunfa esta semana. Que alguien le prepare un discurso de agradecimiento.",
+            "lidera el ranking. Dicen que la humildad es una virtud... ya veremos.",
+            "aplasta a la competencia. Sin piedad, sin remordimientos.",
+            "está on fire esta semana. Que traigan un extintor.",
+            "no tiene rival esta semana. La soledad de la cima.",
+        ]
+        mensajes_empate = [
+            "comparten trono. Los triunfos compartidos se llevan mejor... o eso dicen.",
+            "empatan en lo más alto. Paz, amor y vocabulario.",
+            "se reparten la gloria. Mitad para cada cual.",
+            "terminan en tablas. Como en el ajedrez, pero con emociones.",
+        ]
+        
+        semana = datetime.now().isocalendar()[1]
+        
+        if len(empatados) > 1:
+            nombres = " y ".join(empatados)
+            msg = mensajes_empate[semana % len(mensajes_empate)]
+            texto += f"\n🤝 ¡Empate técnico! *{nombres}* {msg}"
+        else:
+            msg = mensajes_ganador[semana % len(mensajes_ganador)]
+            texto += f"\n🎉 *{ranking[0][1]}* {msg}"
+    
+    texto += "\n\n_Nueva semana, borrón y cuenta nueva. A ver quién manda ahora._"
+    
+    # Enviar a todos los usuarios suscritos
+    usuarios = cargar_usuarios()
+    enviados = 0
+    for user_id, data in usuarios.items():
+        chat_id = data.get('chat_id')
+        if not chat_id:
+            continue
+        try:
+            bot.send_message(chat_id, texto, parse_mode='Markdown')
+            enviados += 1
+        except:
+            pass
+    
+    print(f"Resumen semanal enviado a {enviados} usuarios - {datetime.now()}")
+
+def enviar_resumen_mensual():
+    """Envía el resumen del ranking mensual (día 1 a las 8:00)"""
+    # Calcular ranking del mes anterior
+    ranking = obtener_ranking('mes')
+    
+    if not ranking:
+        print("Resumen mensual: sin puntuaciones")
+        return
+    
+    # Nombre del mes anterior
+    hoy = datetime.now()
+    mes_anterior = hoy.month - 1 if hoy.month > 1 else 12
+    meses_es = {1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL', 5: 'MAYO', 6: 'JUNIO',
+                7: 'JULIO', 8: 'AGOSTO', 9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'}
+    
+    medallas = ['🥇', '🥈', '🥉']
+    texto = f"🏆 *RESUMEN DE {meses_es[mes_anterior]}*\n"
+    texto += "_Ranking final del mes_\n\n"
+    
+    for i, (user_id, nombre, username, pts) in enumerate(ranking[:5]):
+        medalla = medallas[i] if i < 3 else f"{i+1}."
+        nombre_display = f"{nombre} ({username})" if username else nombre
+        texto += f"{medalla} {nombre_display}: {pts} pts\n"
+    
+    if ranking:
+        # Detectar empate en primer puesto
+        pts_ganador = ranking[0][3]
+        empatados = [r[1] for r in ranking if r[3] == pts_ganador]
+        
+        if len(empatados) > 1:
+            nombres = " y ".join(empatados)
+            texto += f"\n🤝 ¡Empate épico! *{nombres}* se reparten el pastel de {meses_es[mes_anterior].lower()}. Menos mal que no hay trofeo físico porque iba a ser incómodo."
+        else:
+            texto += f"\n🎊 *{ranking[0][1]}* domina {meses_es[mes_anterior].lower()}. Se acepta reverencia."
+    
+    texto += "\n\n_Nuevo mes, contador a cero. Que tiemble quien tenga que temblar._"
+    
+    # Enviar a todos los usuarios suscritos
+    usuarios = cargar_usuarios()
+    enviados = 0
+    for user_id, data in usuarios.items():
+        chat_id = data.get('chat_id')
+        if not chat_id:
+            continue
+        try:
+            bot.send_message(chat_id, texto, parse_mode='Markdown')
+            enviados += 1
+        except:
+            pass
+    
+    print(f"Resumen mensual enviado a {enviados} usuarios - {datetime.now()}")
+
 # Programar envío diario a las 9:00 AM
 schedule.every().day.at("09:00").do(enviar_mensaje)
+
+# Resumen semanal: lunes a las 8:00 (1 hora antes de la perla)
+schedule.every().monday.at("08:00").do(enviar_resumen_semanal)
+
+# Resumen mensual: día 1 a las 8:00 (se verifica dentro de la función)
+def check_resumen_mensual():
+    if datetime.now().day == 1:
+        enviar_resumen_mensual()
+
+schedule.every().day.at("08:00").do(check_resumen_mensual)
+
+# Recordatorio del desafío a las 20:00 (11h después de la perla)
+def enviar_recordatorio_desafio():
+    """Recuerda a los usuarios que no han jugado el desafío hoy"""
+    usuarios = cargar_usuarios()
+    usos_desafio = storage.obtener_dict(REDIS_USOS_DESAFIO)
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    
+    mensajes_recordatorio = [
+        "🎯 ¡Ey! Hoy no has jugado al /desafio. Estás regalando puntos del ranking. ¿Seguro que quieres que otros te adelanten?",
+        "🎲 Se te escapa el día sin sumar puntos al ranking. Usa /desafio antes de que sea tarde.",
+        "⏰ Última llamada: el /desafio de hoy sigue esperándote. Tu posición en el ranking peligra.",
+        "🏆 ¿Hoy no compites por el ranking? Los demás te lo agradecen. Usa /desafio si quieres pelear.",
+        "💎 Puntos del ranking desperdiciándose... El /desafio del día te espera. ¡Espabila!",
+        "🦥 ¿Día de descanso? El ranking no entiende de siestas. Venga, /desafio y a sumar.",
+        "📉 Sin puntos hoy, el ranking te adelanta. ¿Vas a dejar que pase? Usa /desafio.",
+        "🎪 El /desafio te espera. No seas espectador/a del ranking, ¡participa y suma puntos!",
+        "🔔 Toc, toc... ¿Hay alguien ahí? El /desafio del día sigue sin jugarse. El ranking no espera.",
+        "🐢 Mientras tú descansas, otros suman puntos al ranking. Usa /desafio antes de que sea tarde.",
+        "⚡ Un /desafio rápido y sumas puntos al ranking. Fácil, ¿no?",
+        "🎭 Drama: hoy no has jugado al /desafio y el ranking sufre tu ausencia.",
+        "🧠 Tu cerebro necesita ejercicio y el ranking necesita tu participación. Usa /desafio.",
+        "🌙 Se acaba el día sin sumar al ranking. Mañana te arrepentirás. Aún puedes usar /desafio.",
+        "🎁 Puntos gratis para el ranking esperándote. Solo tienes que usar /desafio. No cuesta nada.",
+    ]
+    
+    # Elegir mensaje según día del año
+    dia_año = datetime.now().timetuple().tm_yday
+    mensaje = mensajes_recordatorio[dia_año % len(mensajes_recordatorio)]
+    
+    enviados = 0
+    for user_id, data in usuarios.items():
+        chat_id = data.get('chat_id')
+        if not chat_id:
+            continue
+        
+        # Verificar si ya jugó hoy
+        clave = f"{user_id}_{fecha_hoy}"
+        if usos_desafio.get(clave, False):
+            continue  # Ya jugó, no recordar
+        
+        try:
+            bot.send_message(chat_id, mensaje)
+            enviados += 1
+        except:
+            pass
+    
+    print(f"Recordatorio desafío enviado a {enviados} usuarios - {datetime.now()}")
+
+schedule.every().day.at("20:00").do(enviar_recordatorio_desafio)
 
 @bot.message_handler(commands=['start', 'hola'])
 def send_welcome(message):

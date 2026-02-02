@@ -39,6 +39,10 @@ Los usuarios pueden votar la perla del día con 👍 o 👎.
   - 2º intento correcto: **1 punto**
   - 3º+ intentos: **0 puntos**
 - Rankings semanales (lunes a domingo) y mensuales
+- **Notificaciones automáticas**:
+  - **Lunes 8:00**: Resumen semanal del ranking (mensajes jocosos rotativos)
+  - **Día 1 del mes 8:00**: Resumen mensual del ranking
+  - **20:00**: Recordatorio a quienes no han jugado el desafío ese día (15 mensajes rotativos)
 
 ### 3. Horóscopo Irónico
 Predicciones absurdas para cada signo zodiacal.
