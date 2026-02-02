@@ -18,6 +18,7 @@ Bot de Telegram que envía contenido diario: palabras curiosas, refranes, frases
 | `/usuarios` | Lista de usuarios registrados |
 | `/michat` | Muestra tu Chat ID |
 | `/resetpuntos` | (Admin) Resetea el ranking de puntos |
+| `/altavoz [msg]` | (Admin) Envía un mensaje a todos los usuarios |
 
 ---
 
@@ -25,9 +26,10 @@ Bot de Telegram que envía contenido diario: palabras curiosas, refranes, frases
 
 ### 1. Mensaje Diario (9:00 AM UTC)
 Cada día a las 9:00 UTC, todos los usuarios que hayan hecho `/start` reciben:
-- 📚 **Palabra curiosa**: Término poco común con su definición
+- 📚 **Palabra curiosa**: Término poco común con su definición y etimología
 - 🎯 **Refrán**: Clásico o moderno
 - 😂 **Frase mítica**: Citas de amigos
+- 🔍 **Mito desmontado**: Creencia popular que resulta ser falsa (80 mitos)
 - 📅 **Efeméride**: Evento histórico del día
 - 🎉 **Día internacional**: Si aplica
 

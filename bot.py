@@ -11,7 +11,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from dias_internacionales import DIAS_INTERNACIONALES
 from horoscopo import obtener_horoscopo, listar_signos
-from contenido import PALABRAS_CURIOSAS, REFRANES, FRASES_AMIGOS
+from contenido import PALABRAS_CURIOSAS, REFRANES, FRASES_AMIGOS, MITOS_DESMONTADOS
 from efemerides import EFEMERIDES
 import storage
 
@@ -318,6 +318,12 @@ def obtener_dia_internacional():
     hoy = datetime.now()
     return DIAS_INTERNACIONALES.get((hoy.month, hoy.day), None)
 
+def obtener_mito_diario():
+    """Obtiene el mito del día (el mismo para todos los usuarios)"""
+    hoy = datetime.now()
+    indice = (hoy.year * 1000 + hoy.timetuple().tm_yday) % len(MITOS_DESMONTADOS)
+    return MITOS_DESMONTADOS[indice]
+
 def mensaje_diario(user_id=None):
     """Genera el mensaje del día (personalizado por usuario si se proporciona user_id)"""
     palabra = obtener_sin_repetir(PALABRAS_CURIOSAS, 'palabras', user_id)
@@ -325,9 +331,10 @@ def mensaje_diario(user_id=None):
     frase = obtener_sin_repetir(obtener_todas_frases(), 'frases', user_id)
     efemeride = obtener_efemeride()
     dia_internacional = obtener_dia_internacional()
+    mito = obtener_mito_diario()
     
     mensaje = f"""
- *PERLA DEL DÍA*
+🦪 *PERLA DEL DÍA*
 
 📚 *Palabra curiosa:*
 {palabra}
@@ -337,6 +344,10 @@ def mensaje_diario(user_id=None):
 
 😂 *Frase mítica:*
 {frase}
+
+🔍 *Mito desmontado:*
+❌ _{mito['mito']}_
+✅ {mito['realidad']}
 """
     
     if dia_internacional:
@@ -724,10 +735,53 @@ def ver_sugerencias(message):
     
     bot.reply_to(message, texto, parse_mode='Markdown', reply_markup=markup)
 
+@bot.message_handler(commands=['altavoz'])
+def broadcast_mensaje(message):
+    """Envía un mensaje a todos los usuarios (solo admin)"""
+    # Verificar que es admin
+    if str(message.chat.id) != str(CHAT_ID):
+        bot.reply_to(message, "⛔ Este comando es solo para administradores.")
+        return
+    
+    # Extraer el mensaje después del comando
+    texto_broadcast = message.text.replace('/altavoz', '', 1).strip()
+    
+    if not texto_broadcast:
+        bot.reply_to(message, 
+            "📢 *Uso de /altavoz*\n\n"
+            "`/altavoz Tu mensaje aquí`\n\n"
+            "El mensaje se enviará a todos los usuarios registrados.",
+            parse_mode='Markdown')
+        return
+    
+    usuarios = cargar_usuarios()
+    enviados = 0
+    errores = 0
+    
+    for user_id, data in usuarios.items():
+        chat_id = data.get('chat_id')
+        if not chat_id:
+            continue
+        try:
+            bot.send_message(chat_id, f"📢 *MENSAJE DEL BOT*\n\n{texto_broadcast}", parse_mode='Markdown')
+            enviados += 1
+        except Exception as e:
+            errores += 1
+    
+    bot.reply_to(message, 
+        f"📢 *Broadcast enviado*\n\n"
+        f"✅ Enviados: {enviados}\n"
+        f"❌ Errores: {errores}",
+        parse_mode='Markdown')
+
 @bot.message_handler(commands=['resetpuntos'])
 def reset_puntos(message):
     """Resetea los puntos del ranking (solo admin)"""
-    # Verificar que es admin (el que gestiona sugerencias)
+    # Verificar que es admin
+    if str(message.chat.id) != str(CHAT_ID):
+        bot.reply_to(message, "⛔ Este comando es solo para administradores.")
+        return
+    
     puntos = cargar_puntos()
     
     if not puntos:
@@ -1053,7 +1107,7 @@ def ver_mis_estadisticas(message):
     data = puntos[user_id]
     nombre = data.get('nombre', 'Usuario')
     historial = data.get('historial', [])
-    stats = data.get('stats', {'jugados': 0, 'aciertos_1': 0, 'aciertos_2': 0, 'aciertos_3plus': 0})
+    stats = data.get('stats', None)
     
     # Puntos totales
     pts_totales = sum(r['puntos'] for r in historial)
@@ -1066,10 +1120,17 @@ def ver_mis_estadisticas(message):
     pos_semana = next((i+1 for i, r in enumerate(ranking_semana) if r[0] == user_id), '-')
     pos_mes = next((i+1 for i, r in enumerate(ranking_mes) if r[0] == user_id), '-')
     
-    # Porcentaje de aciertos a la primera
-    jugados = stats.get('jugados', 0)
-    aciertos_1 = stats.get('aciertos_1', 0)
-    aciertos_2 = stats.get('aciertos_2', 0)
+    # Calcular estadísticas desde historial si no hay stats guardados
+    if not stats or stats.get('jugados', 0) == 0:
+        # Inferir de puntos: 3pts = acierto 1ª, 1pt = acierto 2ª
+        aciertos_1 = sum(1 for r in historial if r['puntos'] == 3)
+        aciertos_2 = sum(1 for r in historial if r['puntos'] == 1)
+        jugados = len(historial)  # Cada entrada = 1 desafío jugado
+    else:
+        jugados = stats.get('jugados', 0)
+        aciertos_1 = stats.get('aciertos_1', 0)
+        aciertos_2 = stats.get('aciertos_2', 0)
+    
     pct_primera = int((aciertos_1 / jugados) * 100) if jugados > 0 else 0
     pct_segunda = int((aciertos_2 / jugados) * 100) if jugados > 0 else 0
     
