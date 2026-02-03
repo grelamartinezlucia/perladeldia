@@ -10,7 +10,7 @@ Bot de Telegram que envía contenido diario: palabras curiosas, refranes, frases
 | `/ahora` | Recibe una perla instantánea (1 al día) |
 | `/desafio` | Quiz de vocabulario (1 al día) |
 | `/ranking` | Muestra el ranking semanal y mensual del desafío |
-| `/sugerir [frase]` | Envía una sugerencia de frase mítica |
+| `/sugerir` | Sugiere contenido (refranes, palabras, frases, mitos) |
 | `/horoscopo [signo]` | Horóscopo irónico del día |
 | `/stats` | Estadísticas de uso del bot |
 | `/datos` | Muestra datos de contenido usado (palabras, refranes, frases) |

@@ -136,6 +136,7 @@ REFRANES = [
     "Perro ladrador, poco mordedor",
     "Poco a poco se anda lejos",
     "Por la boca muere el pez",
+    "Primero el deber, luego el placer [Cortesía de Raquel]",
     "Quien a buen árbol se arrima, buena sombra le cobija",
     "Quien bien te quiere te hará llorar",
     "Quien calla, otorga",

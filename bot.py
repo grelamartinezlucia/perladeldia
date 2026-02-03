@@ -29,6 +29,9 @@ REDIS_VOTOS = 'votos'
 REDIS_PUNTOS = 'puntos'
 REDIS_USUARIOS = 'usuarios'
 REDIS_FRASES_APROBADAS = 'frases_aprobadas'
+REDIS_REFRANES_APROBADOS = 'refranes_aprobados'
+REDIS_PALABRAS_APROBADAS = 'palabras_aprobadas'
+REDIS_MITOS_APROBADOS = 'mitos_aprobados'
 REDIS_USOS_AHORA = 'usos_ahora'
 REDIS_USOS_DESAFIO = 'usos_desafio'
 REDIS_MODO_OSCURO = 'modo_oscuro'
@@ -46,7 +49,7 @@ def cargar_sugerencias():
     """Carga las sugerencias guardadas"""
     return storage.obtener_lista(REDIS_SUGERENCIAS)
 
-def guardar_sugerencia(user_id, chat_id, usuario, texto):
+def guardar_sugerencia(user_id, chat_id, usuario, texto, categoria='frase'):
     """Guarda una nueva sugerencia con datos para notificar"""
     sugerencias = cargar_sugerencias()
     sugerencias.append({
@@ -55,10 +58,14 @@ def guardar_sugerencia(user_id, chat_id, usuario, texto):
         'chat_id': chat_id,
         'usuario': usuario,
         'texto': texto,
+        'categoria': categoria,
         'fecha': datetime.now().strftime("%d/%m/%Y %H:%M"),
         'estado': 'pendiente'
     })
     storage.guardar_lista(REDIS_SUGERENCIAS, sugerencias)
+
+# Diccionario para trackear usuarios esperando escribir sugerencia
+USUARIOS_SUGERENCIA = {}  # {user_id: {'categoria': str, 'msg_id': int}}
 
 def guardar_sugerencias(sugerencias):
     """Guarda todas las sugerencias"""
@@ -75,9 +82,54 @@ def guardar_frase_aprobada(frase):
         frases.append(frase)
         storage.guardar_lista(REDIS_FRASES_APROBADAS, frases)
 
+def cargar_refranes_aprobados():
+    """Carga los refranes aprobados dinámicamente"""
+    return storage.obtener_lista(REDIS_REFRANES_APROBADOS)
+
+def guardar_refran_aprobado(refran):
+    """Añade un refrán aprobado"""
+    refranes = cargar_refranes_aprobados()
+    if refran not in refranes:
+        refranes.append(refran)
+        storage.guardar_lista(REDIS_REFRANES_APROBADOS, refranes)
+
+def cargar_palabras_aprobadas():
+    """Carga las palabras aprobadas dinámicamente"""
+    return storage.obtener_lista(REDIS_PALABRAS_APROBADAS)
+
+def guardar_palabra_aprobada(palabra):
+    """Añade una palabra aprobada"""
+    palabras = cargar_palabras_aprobadas()
+    if palabra not in palabras:
+        palabras.append(palabra)
+        storage.guardar_lista(REDIS_PALABRAS_APROBADAS, palabras)
+
+def cargar_mitos_aprobados():
+    """Carga los mitos aprobados dinámicamente"""
+    return storage.obtener_lista(REDIS_MITOS_APROBADOS)
+
+def guardar_mito_aprobado(mito):
+    """Añade un mito aprobado"""
+    mitos = cargar_mitos_aprobados()
+    if mito not in mitos:
+        mitos.append(mito)
+        storage.guardar_lista(REDIS_MITOS_APROBADOS, mitos)
+
 def obtener_todas_frases():
     """Combina frases de contenido.py + aprobadas dinámicamente"""
     return FRASES_AMIGOS + cargar_frases_aprobadas()
+
+def obtener_todos_refranes():
+    """Combina refranes de contenido.py + aprobados dinámicamente"""
+    return REFRANES + cargar_refranes_aprobados()
+
+def obtener_todas_palabras():
+    """Combina palabras de contenido.py + aprobadas dinámicamente"""
+    return PALABRAS_CURIOSAS + cargar_palabras_aprobadas()
+
+def obtener_todos_mitos():
+    """Combina mitos de contenido.py + aprobados dinámicamente"""
+    return MITOS_DESMONTADOS + cargar_mitos_aprobados()
 
 def cargar_usuarios():
     """Carga el registro de usuarios"""
@@ -247,11 +299,12 @@ def generar_quiz():
     semilla = int(hashlib.md5(f"desafio_{fecha_hoy}".encode()).hexdigest(), 16) % (2**32)
     rng = random.Random(semilla)
     
-    palabra_completa = rng.choice(PALABRAS_CURIOSAS)
+    todas_palabras = obtener_todas_palabras()
+    palabra_completa = rng.choice(todas_palabras)
     palabra, definicion_correcta = parsear_palabra(palabra_completa)
     
     # Obtener 3 definiciones incorrectas
-    otras = [p for p in PALABRAS_CURIOSAS if p != palabra_completa]
+    otras = [p for p in todas_palabras if p != palabra_completa]
     incorrectas = rng.sample(otras, min(3, len(otras)))
     opciones_incorrectas = [parsear_palabra(p)[1] for p in incorrectas]
     
@@ -325,13 +378,14 @@ def obtener_dia_internacional():
 def obtener_mito_diario():
     """Obtiene el mito del día (el mismo para todos los usuarios)"""
     hoy = datetime.now()
-    indice = (hoy.year * 1000 + hoy.timetuple().tm_yday) % len(MITOS_DESMONTADOS)
-    return MITOS_DESMONTADOS[indice]
+    todos_mitos = obtener_todos_mitos()
+    indice = (hoy.year * 1000 + hoy.timetuple().tm_yday) % len(todos_mitos)
+    return todos_mitos[indice]
 
 def mensaje_diario(user_id=None):
     """Genera el mensaje del día (personalizado por usuario si se proporciona user_id)"""
-    palabra = obtener_sin_repetir(PALABRAS_CURIOSAS, 'palabras', user_id)
-    refran = obtener_sin_repetir(REFRANES, 'refranes', user_id)
+    palabra = obtener_sin_repetir(obtener_todas_palabras(), 'palabras', user_id)
+    refran = obtener_sin_repetir(obtener_todos_refranes(), 'refranes', user_id)
     frase = obtener_sin_repetir(obtener_todas_frases(), 'frases', user_id)
     efemeride = obtener_efemeride()
     dia_internacional = obtener_dia_internacional()
@@ -605,7 +659,7 @@ Soy tu dealer diario de sabiduría random y frasecitas que nadie pidió pero tod
 /ahora - Si no puedes esperar a mañana, ¡perla instantánea!
 /desafio - ¡Pon a prueba tu vocabulario!
 /ranking - Ranking semanal y mensual
-/sugerir [frase] - Sugiere una frase mítica para añadir
+/sugerir - Sugiere contenido (refranes, palabras, frases, mitos)
 /horoscopo [signo] - Tu destino más absurdo
 
 Prepárate para la cultura... o algo parecido 🤷‍♀️
@@ -704,14 +758,108 @@ def handle_voto(call):
 @bot.message_handler(commands=['sugerir'])
 def sugerir_frase(message):
     registrar_usuario(message.from_user)
-    texto = message.text.replace('/sugerir', '').strip()
+    user_id = message.from_user.id
+    
+    # Limpiar estado previo si existe
+    if user_id in USUARIOS_SUGERENCIA:
+        del USUARIOS_SUGERENCIA[user_id]
+    
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    btn_refran = types.InlineKeyboardButton("🎯 Refrán", callback_data="sugerir_refran")
+    btn_palabra = types.InlineKeyboardButton("📚 Palabra curiosa", callback_data="sugerir_palabra")
+    btn_frase = types.InlineKeyboardButton("😂 Frase mítica", callback_data="sugerir_frase")
+    btn_mito = types.InlineKeyboardButton("🔍 Mito desmontado", callback_data="sugerir_mito")
+    btn_cancelar = types.InlineKeyboardButton("❌ Cancelar", callback_data="sugerir_cancelar")
+    markup.add(btn_refran, btn_palabra)
+    markup.add(btn_frase, btn_mito)
+    markup.add(btn_cancelar)
+    
+    bot.reply_to(message,
+        "💡 *¿Qué quieres sugerir?*\n\n"
+        "Selecciona una categoría:",
+        parse_mode='Markdown',
+        reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('sugerir_'))
+def handle_sugerir_categoria(call):
+    """Maneja la selección de categoría para sugerir"""
+    user_id = call.from_user.id
+    categoria = call.data.replace('sugerir_', '')
+    
+    if categoria == 'cancelar':
+        if user_id in USUARIOS_SUGERENCIA:
+            del USUARIOS_SUGERENCIA[user_id]
+        bot.edit_message_text(
+            "❌ Sugerencia cancelada.",
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id)
+        bot.answer_callback_query(call.id)
+        return
+    
+    # Guardar estado del usuario
+    USUARIOS_SUGERENCIA[user_id] = {
+        'categoria': categoria,
+        'chat_id': call.message.chat.id
+    }
+    
+    # Mensajes según categoría
+    ejemplos = {
+        'refran': "Ejemplo: _Más vale pájaro en mano que ciento volando_",
+        'palabra': "Ejemplo: _Petricor: Olor característico que produce la lluvia al caer sobre suelos secos_",
+        'frase': "Ejemplo: _\"Eso lo arreglo yo con un par de bridas\" - Mi padre_",
+        'mito': "Ejemplo: _Mito: Los murciélagos son ciegos | Realidad: Tienen buena vista y además usan ecolocalización_"
+    }
+    
+    nombres = {
+        'refran': '🎯 Refrán',
+        'palabra': '📚 Palabra curiosa',
+        'frase': '😂 Frase mítica',
+        'mito': '🔍 Mito desmontado'
+    }
+    
+    bot.edit_message_text(
+        f"*{nombres[categoria]}*\n\n"
+        f"Escribe tu sugerencia a continuación:\n\n"
+        f"{ejemplos[categoria]}",
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        parse_mode='Markdown')
+    bot.answer_callback_query(call.id, "✏️ Escribe tu sugerencia")
+
+@bot.message_handler(func=lambda m: m.from_user.id in USUARIOS_SUGERENCIA and not m.text.startswith('/'))
+def recibir_sugerencia(message):
+    """Recibe el texto de la sugerencia del usuario"""
+    user_id = message.from_user.id
+    estado = USUARIOS_SUGERENCIA.get(user_id)
+    
+    if not estado:
+        return
+    
+    categoria = estado['categoria']
+    texto = message.text.strip()
+    
     if not texto:
-        bot.reply_to(message, "✏️ Usa: /sugerir Tu frase mítica - Autor")
+        bot.reply_to(message, "❌ El texto no puede estar vacío. Escribe tu sugerencia:")
         return
     
     usuario = message.from_user.first_name or "Anónimo"
-    guardar_sugerencia(message.from_user.id, message.chat.id, usuario, texto)
-    bot.reply_to(message, f"✅ ¡Gracias {usuario}! Tu sugerencia ha sido guardada para revisión. Te notificaré cuando sea revisada.")
+    guardar_sugerencia(user_id, message.chat.id, usuario, texto, categoria)
+    
+    # Limpiar estado
+    del USUARIOS_SUGERENCIA[user_id]
+    
+    nombres = {
+        'refran': 'refrán',
+        'palabra': 'palabra curiosa',
+        'frase': 'frase mítica',
+        'mito': 'mito desmontado'
+    }
+    
+    bot.reply_to(message, 
+        f"✅ ¡Gracias {usuario}!\n\n"
+        f"Tu sugerencia de *{nombres[categoria]}* ha sido guardada para revisión.\n"
+        f"Te notificaré cuando sea revisada.",
+        parse_mode='Markdown')
 
 @bot.message_handler(commands=['versugerencias'])
 def ver_sugerencias(message):
@@ -726,7 +874,17 @@ def ver_sugerencias(message):
     s = pendientes[0]
     idx = sugerencias.index(s)
     
+    # Nombres de categorías para mostrar
+    cat_nombres = {
+        'refran': '🎯 Refrán',
+        'palabra': '📚 Palabra curiosa',
+        'frase': '😂 Frase mítica',
+        'mito': '🔍 Mito desmontado'
+    }
+    cat = cat_nombres.get(s.get('categoria', 'frase'), '😂 Frase mítica')
+    
     texto = f"📬 *Sugerencia pendiente* ({len(pendientes)} en cola)\n\n"
+    texto += f"*Categoría:* {cat}\n\n"
     texto += f"_{s['texto']}_\n\n"
     texto += f"👤 {s['usuario']} - {s['fecha']}"
     
@@ -1014,7 +1172,16 @@ def handle_sugerencia(call):
         next_idx, next_s = pendientes[0]
         pendientes_count = len([sg for sg in sugerencias if sg.get('estado') == 'pendiente'])
         
+        cat_nombres = {
+            'refran': '🎯 Refrán',
+            'palabra': '📚 Palabra curiosa',
+            'frase': '😂 Frase mítica',
+            'mito': '🔍 Mito desmontado'
+        }
+        cat = cat_nombres.get(next_s.get('categoria', 'frase'), '😂 Frase mítica')
+        
         texto = f"📬 *Sugerencia pendiente* ({pendientes_count} en cola)\n\n"
+        texto += f"*Categoría:* {cat}\n\n"
         texto += f"_{next_s['texto']}_\n\n"
         texto += f"👤 {next_s['usuario']} - {next_s['fecha']}"
         
@@ -1033,15 +1200,29 @@ def handle_sugerencia(call):
         sugerencias[idx]['estado'] = 'aprobada'
         guardar_sugerencias(sugerencias)
         
-        # Añadir frase al archivo de frases aprobadas
-        guardar_frase_aprobada(s['texto'])
+        # Añadir a la lista según categoría (con marca de sugerencia)
+        categoria = s.get('categoria', 'frase')
+        texto_con_marca = f"{s['texto']} (sugerido por {s['usuario']})"
+        
+        if categoria == 'refran':
+            guardar_refran_aprobado(texto_con_marca)
+            tipo_texto = "los refranes"
+        elif categoria == 'palabra':
+            guardar_palabra_aprobada(texto_con_marca)
+            tipo_texto = "las palabras curiosas"
+        elif categoria == 'mito':
+            guardar_mito_aprobado(texto_con_marca)
+            tipo_texto = "los mitos desmontados"
+        else:
+            guardar_frase_aprobada(texto_con_marca)
+            tipo_texto = "las frases míticas"
         
         # Notificar al usuario
         chat_id = s.get('chat_id')
         if chat_id:
             try:
                 bot.send_message(chat_id, 
-                    f"🎉 *¡Tu sugerencia fue aprobada!*\n\n_{s['texto']}_\n\n¡Ya está añadida a las frases del bot! Gracias por contribuir 🙌",
+                    f"🎉 *¡Tu sugerencia fue aprobada!*\n\n_{s['texto']}_\n\n¡Ya está añadida a {tipo_texto} del bot! Gracias por contribuir 🙌",
                     parse_mode='Markdown')
             except:
                 pass
@@ -1070,7 +1251,16 @@ def handle_sugerencia(call):
         next_s = pendientes[0]
         next_idx = sugerencias.index(next_s)
         
+        cat_nombres = {
+            'refran': '🎯 Refrán',
+            'palabra': '📚 Palabra curiosa',
+            'frase': '😂 Frase mítica',
+            'mito': '🔍 Mito desmontado'
+        }
+        cat = cat_nombres.get(next_s.get('categoria', 'frase'), '😂 Frase mítica')
+        
         texto = f"📬 *Sugerencia pendiente* ({len(pendientes)} en cola)\n\n"
+        texto += f"*Categoría:* {cat}\n\n"
         texto += f"_{next_s['texto']}_\n\n"
         texto += f"👤 {next_s['usuario']} - {next_s['fecha']}"
         
@@ -1397,9 +1587,9 @@ def ver_datos(message):
     # Conteos del usuario actual
     estado_usuario = estado.get(user_id, {'palabras': [], 'refranes': [], 'frases': []})
     palabras_usadas = len(estado_usuario.get('palabras', []))
-    palabras_total = len(PALABRAS_CURIOSAS)
+    palabras_total = len(obtener_todas_palabras())
     refranes_usados = len(estado_usuario.get('refranes', []))
-    refranes_total = len(REFRANES)
+    refranes_total = len(obtener_todos_refranes())
     frases_usadas = len(estado_usuario.get('frases', []))
     frases_total = len(obtener_todas_frases())
     
