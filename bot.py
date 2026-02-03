@@ -283,11 +283,18 @@ def obtener_ranking(periodo='semana'):
     
     return sorted(ranking, key=lambda x: x[3], reverse=True)[:10]
 
-def parsear_palabra(texto):
-    """Separa 'Palabra: definición' en (palabra, definición)"""
+def parsear_palabra(texto, incluir_etimologia=True):
+    """Separa 'Palabra: definición (etimología)' en (palabra, definición)"""
     if ':' in texto:
         partes = texto.split(':', 1)
-        return partes[0].strip(), partes[1].strip()
+        palabra = partes[0].strip()
+        definicion = partes[1].strip()
+        
+        # Quitar etimología (texto entre paréntesis al final) si no se quiere
+        if not incluir_etimologia and '(' in definicion:
+            definicion = definicion.rsplit('(', 1)[0].strip()
+        
+        return palabra, definicion
     return texto, ""
 
 def generar_quiz():
@@ -301,12 +308,12 @@ def generar_quiz():
     
     todas_palabras = obtener_todas_palabras()
     palabra_completa = rng.choice(todas_palabras)
-    palabra, definicion_correcta = parsear_palabra(palabra_completa)
+    palabra, definicion_correcta = parsear_palabra(palabra_completa, incluir_etimologia=False)
     
-    # Obtener 3 definiciones incorrectas
+    # Obtener 3 definiciones incorrectas (sin etimología para dificultar)
     otras = [p for p in todas_palabras if p != palabra_completa]
     incorrectas = rng.sample(otras, min(3, len(otras)))
-    opciones_incorrectas = [parsear_palabra(p)[1] for p in incorrectas]
+    opciones_incorrectas = [parsear_palabra(p, incluir_etimologia=False)[1] for p in incorrectas]
     
     # Mezclar opciones (con la misma semilla para consistencia)
     todas_opciones = [definicion_correcta] + opciones_incorrectas
