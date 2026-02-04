@@ -208,21 +208,22 @@ def sumar_puntos(user_id, nombre, puntos_ganados, username=None, intento=1):
     if user_key not in puntos:
         puntos[user_key] = {'nombre': nombre, 'username': username, 'historial': [], 'stats': {'jugados': 0, 'aciertos_1': 0, 'aciertos_2': 0, 'aciertos_3plus': 0}}
     
+    # Verificar si ya tiene puntos de hoy (protección contra duplicados)
+    historial = puntos[user_key].get('historial', [])
+    ya_jugo_hoy = any(r['fecha'] == fecha_hoy for r in historial)
+    if ya_jugo_hoy:
+        print(f"⚠️ Duplicado evitado: {nombre} ({user_key}) ya tiene puntos del {fecha_hoy}")
+        return calcular_puntos_semana(user_key)
+    
     puntos[user_key]['nombre'] = nombre
     puntos[user_key]['username'] = username
     
-    # Inicializar stats si no existe (para usuarios antiguos)
-    if 'stats' not in puntos[user_key]:
-        puntos[user_key]['stats'] = {'jugados': 0, 'aciertos_1': 0, 'aciertos_2': 0, 'aciertos_3plus': 0}
+    # Solo guardamos aciertos_3plus (3º+ intento, 0 pts - no van al historial)
+    if 'aciertos_3plus' not in puntos[user_key]:
+        puntos[user_key]['aciertos_3plus'] = 0
     
-    # Actualizar estadísticas
-    puntos[user_key]['stats']['jugados'] += 1
-    if intento == 1:
-        puntos[user_key]['stats']['aciertos_1'] += 1
-    elif intento == 2:
-        puntos[user_key]['stats']['aciertos_2'] += 1
-    else:
-        puntos[user_key]['stats']['aciertos_3plus'] += 1
+    if intento >= 3:
+        puntos[user_key]['aciertos_3plus'] += 1
     
     if puntos_ganados > 0:
         puntos[user_key]['historial'].append({
@@ -1395,7 +1396,7 @@ def handle_desafio(call):
     # Contar intento
     if clave_intento not in INTENTOS_DESAFIO:
         INTENTOS_DESAFIO[clave_intento] = 0
-        # Marcar como jugado en el primer intento (no al iniciar el quiz)
+        # Marcar como jugado en el primer intento
         marcar_desafio_jugado(user_id)
     INTENTOS_DESAFIO[clave_intento] += 1
     intento = INTENTOS_DESAFIO[clave_intento]
@@ -1487,7 +1488,6 @@ def ver_mis_estadisticas(message):
     data = puntos[user_id]
     nombre = data.get('nombre', 'Usuario')
     historial = data.get('historial', [])
-    stats = data.get('stats', None)
     
     # Puntos totales
     pts_totales = sum(r['puntos'] for r in historial)
@@ -1500,14 +1500,11 @@ def ver_mis_estadisticas(message):
     pos_semana = next((i+1 for i, r in enumerate(ranking_semana) if r[0] == user_id), '-')
     pos_mes = next((i+1 for i, r in enumerate(ranking_mes) if r[0] == user_id), '-')
     
-    # Calcular estadísticas siempre desde historial (fuente de verdad)
-    # El historial solo guarda cuando hay puntos > 0, así que cada entrada = 1 acierto
+    # Calcular estadísticas desde historial (fuente de verdad)
     aciertos_1 = sum(1 for r in historial if r['puntos'] == 3)
     aciertos_2 = sum(1 for r in historial if r['puntos'] == 1)
-    # Jugados = aciertos del historial + fallos de stats (si existen)
-    aciertos_historial = aciertos_1 + aciertos_2
-    fallos_stats = stats.get('aciertos_3plus', 0) if stats else 0
-    jugados = aciertos_historial + fallos_stats
+    aciertos_3plus = data.get('aciertos_3plus', 0)
+    jugados = aciertos_1 + aciertos_2 + aciertos_3plus
     
     pct_primera = int((aciertos_1 / jugados) * 100) if jugados > 0 else 0
     pct_segunda = int((aciertos_2 / jugados) * 100) if jugados > 0 else 0
