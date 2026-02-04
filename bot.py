@@ -1500,16 +1500,14 @@ def ver_mis_estadisticas(message):
     pos_semana = next((i+1 for i, r in enumerate(ranking_semana) if r[0] == user_id), '-')
     pos_mes = next((i+1 for i, r in enumerate(ranking_mes) if r[0] == user_id), '-')
     
-    # Calcular estadísticas desde historial si no hay stats guardados
-    if not stats or stats.get('jugados', 0) == 0:
-        # Inferir de puntos: 3pts = acierto 1ª, 1pt = acierto 2ª
-        aciertos_1 = sum(1 for r in historial if r['puntos'] == 3)
-        aciertos_2 = sum(1 for r in historial if r['puntos'] == 1)
-        jugados = len(historial)  # Cada entrada = 1 desafío jugado
-    else:
-        jugados = stats.get('jugados', 0)
-        aciertos_1 = stats.get('aciertos_1', 0)
-        aciertos_2 = stats.get('aciertos_2', 0)
+    # Calcular estadísticas siempre desde historial (fuente de verdad)
+    # El historial solo guarda cuando hay puntos > 0, así que cada entrada = 1 acierto
+    aciertos_1 = sum(1 for r in historial if r['puntos'] == 3)
+    aciertos_2 = sum(1 for r in historial if r['puntos'] == 1)
+    # Jugados = aciertos del historial + fallos de stats (si existen)
+    aciertos_historial = aciertos_1 + aciertos_2
+    fallos_stats = stats.get('aciertos_3plus', 0) if stats else 0
+    jugados = aciertos_historial + fallos_stats
     
     pct_primera = int((aciertos_1 / jugados) * 100) if jugados > 0 else 0
     pct_segunda = int((aciertos_2 / jugados) * 100) if jugados > 0 else 0
