@@ -36,6 +36,7 @@ REDIS_USOS_AHORA = 'usos_ahora'
 REDIS_USOS_DESAFIO = 'usos_desafio'
 REDIS_MODO_OSCURO = 'modo_oscuro'
 REDIS_USOS_OSCURA = 'usos_oscura'
+REDIS_DESAFIO_USADAS = 'desafio_palabras_usadas'
 
 def cargar_estado():
     """Carga el estado de elementos ya usados"""
@@ -298,20 +299,58 @@ def parsear_palabra(texto, incluir_etimologia=True):
         return palabra, definicion
     return texto, ""
 
+def obtener_palabra_desafio_hoy():
+    """Obtiene la palabra del desafío de hoy, sin repetir hasta agotar todas"""
+    import hashlib
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    
+    # Cargar estado del desafío
+    estado = storage.obtener_dict(REDIS_DESAFIO_USADAS) or {'fecha': '', 'palabra': '', 'usadas': []}
+    
+    # Si ya se generó hoy, devolver la misma
+    if estado.get('fecha') == fecha_hoy:
+        return estado['palabra']
+    
+    # Nueva fecha: seleccionar palabra no usada
+    todas_palabras = obtener_todas_palabras()
+    usadas = estado.get('usadas', [])
+    
+    # Filtrar disponibles
+    disponibles = [p for p in todas_palabras if p not in usadas]
+    
+    # Si se agotaron, reiniciar
+    if not disponibles:
+        disponibles = todas_palabras
+        usadas = []
+    
+    # Selección determinista basada en fecha
+    semilla = int(hashlib.md5(f"desafio_{fecha_hoy}".encode()).hexdigest(), 16) % (2**32)
+    rng = random.Random(semilla)
+    palabra_completa = rng.choice(disponibles)
+    
+    # Guardar estado
+    usadas.append(palabra_completa)
+    storage.guardar_dict(REDIS_DESAFIO_USADAS, {
+        'fecha': fecha_hoy,
+        'palabra': palabra_completa,
+        'usadas': usadas
+    })
+    
+    return palabra_completa
+
 def generar_quiz():
     """Genera un quiz con una palabra y 4 opciones (mismo desafío para todos cada día)"""
-    # Semilla determinista: misma palabra para todos en el mismo día
-    # Usamos hashlib en lugar de hash() porque hash() no es determinista entre reinicios
     import hashlib
     fecha_hoy = datetime.now().strftime("%Y-%m-%d")
     semilla = int(hashlib.md5(f"desafio_{fecha_hoy}".encode()).hexdigest(), 16) % (2**32)
     rng = random.Random(semilla)
     
-    todas_palabras = obtener_todas_palabras()
-    palabra_completa = rng.choice(todas_palabras)
+    # Obtener palabra del día (sin repetir hasta agotar todas)
+    palabra_completa = obtener_palabra_desafio_hoy()
     palabra, definicion_correcta = parsear_palabra(palabra_completa, incluir_etimologia=False)
     
     # Obtener 3 definiciones incorrectas (sin etimología para dificultar)
+    todas_palabras = obtener_todas_palabras()
     otras = [p for p in todas_palabras if p != palabra_completa]
     incorrectas = rng.sample(otras, min(3, len(otras)))
     opciones_incorrectas = [parsear_palabra(p, incluir_etimologia=False)[1] for p in incorrectas]
