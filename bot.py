@@ -907,6 +907,18 @@ def recibir_sugerencia(message):
         f"Tu sugerencia de *{nombres[categoria]}* ha sido guardada para revisión.\n"
         f"Te notificaré cuando sea revisada.",
         parse_mode='Markdown')
+    
+    # Notificar a la admin
+    try:
+        bot.send_message(CHAT_ID,
+            f"📬 *Nueva sugerencia recibida*\n\n"
+            f"*Categoría:* {nombres[categoria]}\n"
+            f"*De:* {usuario}\n"
+            f"*Texto:* _{texto[:100]}{'...' if len(texto) > 100 else ''}_\n\n"
+            f"Usa /versugerencias para revisarla.",
+            parse_mode='Markdown')
+    except:
+        pass
 
 @bot.message_handler(commands=['versugerencias'])
 def ver_sugerencias(message):
