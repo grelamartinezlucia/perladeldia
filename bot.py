@@ -37,6 +37,18 @@ REDIS_USOS_DESAFIO = 'usos_desafio'
 REDIS_MODO_OSCURO = 'modo_oscuro'
 REDIS_USOS_OSCURA = 'usos_oscura'
 REDIS_DESAFIO_USADAS = 'desafio_palabras_usadas'
+REDIS_QUEJAS = 'buzon_quejas'
+
+# Diccionario para trackear usuarios escribiendo quejas
+USUARIOS_QUEJA = {}  # {user_id: {'chat_id': int}}
+
+def cargar_quejas():
+    """Carga las quejas del buzón"""
+    return storage.obtener_lista(REDIS_QUEJAS) or []
+
+def guardar_quejas(quejas):
+    """Guarda las quejas en el buzón"""
+    storage.guardar_lista(REDIS_QUEJAS, quejas)
 
 def cargar_estado():
     """Carga el estado de elementos ya usados"""
@@ -931,6 +943,256 @@ def recibir_sugerencia(message):
             parse_mode='Markdown')
     except:
         pass
+
+# ============== BUZÓN DE QUEJAS ==============
+
+RESPUESTAS_QUEJA_INICIO = [
+    "Ah, veo que hoy te has levantado con ganas de expresar tu descontento. Qué bien, me encanta empezar el día con drama. Escribe tu queja:",
+    "Bienvenido al Departamento de Lágrimas y Lamentos. Un operador imaginario te atenderá nunca. Mientras tanto, escribe tu queja:",
+    "¡Oh, una queja! Qué emocionante. Llevaba 0.3 segundos sin recibir ninguna. Cuéntame tu dolor:",
+    "Has llamado al buzón de reclamaciones. Tu queja es muy importante para nosotros. Tan importante que la leeremos algún día. Escribe:",
+    "Atención: estás a punto de quejarte a un bot. Reflexiona si este es el punto más bajo de tu semana. Si la respuesta es sí, adelante:",
+    "Oficina de Quejas Inútiles, ¿en qué puedo no ayudarte hoy? Escribe tu reclamación:",
+    "Vaya, otro cliente satisfecho que viene a compartir su felicidad. Espera, no. Escribe tu queja:",
+    "Gracias por elegir nuestro servicio de atención al descontento. Su frustración será ignorada en el orden en que llegó. Adelante:",
+    "¿Problemas? ¿En ESTE bot? Imposible. Pero bueno, cuéntame tu versión de los hechos:",
+    "Estás hablando con el contestador automático de quejas. Por favor, deja tu lamento después de la señal... bueno, no hay señal, escribe directamente:",
+    "Departamento de 'Ya lo sabíamos pero nos da igual'. ¿En qué puedo fingir ayudarte?",
+    "¡Bienvenido al rincón del llanto! Tenemos pañuelos virtuales y cero soluciones. Escribe:",
+    "Tu opinión es muy valiosa para nosotros. La guardaremos junto al resto de cosas valiosas que nunca usamos. Escribe:",
+    "Aquí se recogen quejas, lamentos, berrinches y dramas varios. ¿Cuál es el tuyo?",
+    "Centro de Procesamiento de Frustraciones. Nivel de procesamiento actual: mínimo. Pero adelante:",
+    "Me han dicho que escuchar es terapéutico. Para ti, claro. Yo no siento nada. Desahógate:",
+]
+
+RESPUESTAS_QUEJA_RECIBIDA = [
+    "Tu queja ha sido recibida y archivada en la carpeta 'Cosas que leeré cuando tenga tiempo' (spoiler: nunca tengo tiempo).",
+    "Gracias por tu feedback. Lo he añadido a mi lista de prioridades, justo debajo de 'aprender a sentir emociones'.",
+    "Queja registrada. Nuestro equipo de 0 personas trabajará en ello con la máxima desidia.",
+    "He recibido tu queja y me ha conmovido profundamente. Es broma, soy un bot, no siento nada. Pero la he guardado.",
+    "Tu reclamación ha sido enviada al departamento correspondiente (una carpeta que nadie revisa). ¡Gracias por participar!",
+    "Queja almacenada con éxito. Probabilidad de que cambie algo: la misma que de que yo desarrolle consciencia.",
+    "Recibido. He añadido tu queja al buzón junto con las otras 47 sobre el mismo tema. Sois muy originales.",
+    "Tu grito al vacío ha sido registrado. El vacío te lo agradece, aunque no va a responder.",
+    "Queja recibida. La he puesto en la cola, justo detrás de 'arreglar el mundo' y 'conseguir la paz mundial'.",
+    "Gracias por contribuir al archivo histórico de lamentos. Los historiadores del futuro te lo agradecerán.",
+    "He guardado tu queja en un lugar muy especial: la papelera de reciclaje del corazón.",
+    "Reclamación procesada. Estado: pendiente de que me importe. Tiempo estimado: indefinido.",
+    "Tu queja ha sido catalogada bajo 'Cosas que resolver cuando tenga ganas'. Spoiler: nunca tengo ganas.",
+    "Expediente abierto. Asignado al agente 'Nadie'. Él se pondrá en contacto contigo nunca.",
+    "Queja almacenada con éxito en nuestra base de datos de frustraciones. Ya van 2.847 este mes.",
+    "He recibido tu mensaje. Lo leeré con la misma atención que los términos y condiciones de las apps.",
+    "Tu opinión ha sido anotada, evaluada y descartada. Es broma. Solo anotada.",
+    "Reclamación registrada. La próxima reunión del comité de 'Nos da igual' es... nunca. Te avisamos.",
+]
+
+@bot.message_handler(commands=['quejas', 'queja', 'reclamacion', 'reclamaciones'])
+def iniciar_queja(message):
+    """Inicia el proceso de queja con humor sarcástico"""
+    user_id = message.from_user.id
+    
+    # Limpiar estado previo si existe
+    if user_id in USUARIOS_QUEJA:
+        del USUARIOS_QUEJA[user_id]
+    
+    USUARIOS_QUEJA[user_id] = {'chat_id': message.chat.id}
+    
+    respuesta = random.choice(RESPUESTAS_QUEJA_INICIO)
+    
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("❌ Mejor me callo", callback_data="queja_cancelar"))
+    
+    bot.reply_to(message, 
+        f"📢 *BUZÓN DE RECLAMACIONES*\n\n{respuesta}",
+        parse_mode='Markdown',
+        reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data == 'queja_cancelar')
+def cancelar_queja(call):
+    """Cancela el proceso de queja"""
+    user_id = call.from_user.id
+    
+    if user_id in USUARIOS_QUEJA:
+        del USUARIOS_QUEJA[user_id]
+    
+    respuestas_cancelar = [
+        "Sabia decisión. Guardarte las cosas dentro es muy sano. O eso dicen.",
+        "Ah, al final no era para tanto, ¿eh? Eso me parecía.",
+        "Muy bien, reprímelo. Como los adultos funcionales.",
+        "Cancelado. Tu queja se queda en tu interior, fermentando lentamente. Disfruta.",
+    ]
+    
+    bot.edit_message_text(
+        f"🤐 {random.choice(respuestas_cancelar)}",
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id)
+    bot.answer_callback_query(call.id)
+
+@bot.message_handler(func=lambda m: m.from_user.id in USUARIOS_QUEJA and not m.text.startswith('/'))
+def recibir_queja(message):
+    """Recibe y almacena la queja del usuario"""
+    user_id = message.from_user.id
+    estado = USUARIOS_QUEJA.get(user_id)
+    
+    if not estado:
+        return
+    
+    texto = message.text.strip()
+    
+    if not texto:
+        bot.reply_to(message, "¿Una queja vacía? Eso es muy zen de tu parte, pero necesito texto.")
+        return
+    
+    usuario = message.from_user.first_name or "Quejica Anónimo"
+    username = message.from_user.username
+    
+    # Guardar la queja
+    quejas = cargar_quejas()
+    quejas.append({
+        'id': len(quejas),
+        'user_id': user_id,
+        'chat_id': message.chat.id,
+        'usuario': usuario,
+        'username': username,
+        'texto': texto,
+        'fecha': datetime.now().strftime("%d/%m/%Y %H:%M"),
+        'estado': 'pendiente'
+    })
+    guardar_quejas(quejas)
+    
+    # Limpiar estado
+    del USUARIOS_QUEJA[user_id]
+    
+    respuesta = random.choice(RESPUESTAS_QUEJA_RECIBIDA)
+    
+    bot.reply_to(message, 
+        f"📋 *QUEJA REGISTRADA*\n\n{respuesta}\n\n"
+        f"_Número de expediente: #{len(quejas):04d}_\n"
+        f"_Tiempo estimado de respuesta: entre nunca y jamás_",
+        parse_mode='Markdown')
+    
+    # Notificar a la admin
+    try:
+        bot.send_message(CHAT_ID,
+            f"😤 *Nueva queja en el buzón*\n\n"
+            f"*De:* {usuario}{f' (@{username})' if username else ''}\n"
+            f"*Queja:* _{texto[:150]}{'...' if len(texto) > 150 else ''}_\n\n"
+            f"Usa /verquejas para verla completa.",
+            parse_mode='Markdown')
+    except:
+        pass
+
+@bot.message_handler(commands=['verquejas'])
+def ver_quejas(message):
+    """Muestra las quejas pendientes (solo admin)"""
+    if str(message.chat.id) != str(CHAT_ID):
+        bot.reply_to(message, "⛔ Las quejas son confidenciales. Solo la jefa las puede ver.")
+        return
+    
+    quejas = cargar_quejas()
+    pendientes = [q for q in quejas if q.get('estado') == 'pendiente']
+    
+    if not pendientes:
+        bot.reply_to(message, "🎉 ¡Milagro! No hay quejas pendientes. La gente está extrañamente satisfecha.")
+        return
+    
+    q = pendientes[0]
+    idx = quejas.index(q)
+    
+    texto = f"😤 *Queja pendiente* ({len(pendientes)} en cola)\n\n"
+    nombre_usuario = f" (@{q.get('username')})" if q.get('username') else ''
+    texto += f"*De:* {q['usuario']}{nombre_usuario}\n"
+    texto += f"*Fecha:* {q['fecha']}\n\n"
+    texto += f"_{q['texto']}_"
+    
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton("✅ Atendida", callback_data=f"queja_atender_{idx}"),
+        types.InlineKeyboardButton("🗑️ Ignorar", callback_data=f"queja_ignorar_{idx}"),
+        types.InlineKeyboardButton("⏭️ Siguiente", callback_data=f"queja_saltar_{idx}")
+    )
+    
+    bot.reply_to(message, texto, parse_mode='Markdown', reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('queja_') and call.data != 'queja_cancelar')
+def handle_queja_admin(call):
+    """Maneja acciones de admin sobre quejas"""
+    partes = call.data.split('_')
+    accion = partes[1]
+    idx = int(partes[2])
+    
+    quejas = cargar_quejas()
+    if idx >= len(quejas):
+        bot.answer_callback_query(call.id, "❌ Queja no encontrada")
+        return
+    
+    q = quejas[idx]
+    
+    if accion == 'saltar':
+        pendientes = [(i, qj) for i, qj in enumerate(quejas) if qj.get('estado') == 'pendiente' and i > idx]
+        if not pendientes:
+            pendientes = [(i, qj) for i, qj in enumerate(quejas) if qj.get('estado') == 'pendiente' and i != idx]
+        
+        if not pendientes:
+            bot.edit_message_text("🎉 No hay más quejas pendientes.",
+                chat_id=call.message.chat.id, message_id=call.message.message_id)
+            return
+        
+        next_idx, next_q = pendientes[0]
+        pendientes_count = len([qj for qj in quejas if qj.get('estado') == 'pendiente'])
+        
+        texto = f"😤 *Queja pendiente* ({pendientes_count} en cola)\n\n"
+        nombre_usuario = f" (@{next_q.get('username')})" if next_q.get('username') else ''
+        texto += f"*De:* {next_q['usuario']}{nombre_usuario}\n"
+        texto += f"*Fecha:* {next_q['fecha']}\n\n"
+        texto += f"_{next_q['texto']}_"
+        
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            types.InlineKeyboardButton("✅ Atendida", callback_data=f"queja_atender_{next_idx}"),
+            types.InlineKeyboardButton("🗑️ Ignorar", callback_data=f"queja_ignorar_{next_idx}"),
+            types.InlineKeyboardButton("⏭️ Siguiente", callback_data=f"queja_saltar_{next_idx}")
+        )
+        
+        bot.edit_message_text(texto, chat_id=call.message.chat.id, 
+            message_id=call.message.message_id, parse_mode='Markdown', reply_markup=markup)
+        bot.answer_callback_query(call.id)
+        return
+    
+    if accion == 'atender':
+        quejas[idx]['estado'] = 'atendida'
+        guardar_quejas(quejas)
+        bot.answer_callback_query(call.id, "✅ Marcada como atendida")
+        
+    elif accion == 'ignorar':
+        quejas[idx]['estado'] = 'ignorada'
+        guardar_quejas(quejas)
+        bot.answer_callback_query(call.id, "🗑️ Ignorada con éxito (como debe ser)")
+    
+    # Mostrar siguiente o mensaje de fin
+    pendientes = [qj for qj in quejas if qj.get('estado') == 'pendiente']
+    if pendientes:
+        next_q = pendientes[0]
+        next_idx = quejas.index(next_q)
+        
+        texto = f"😤 *Queja pendiente* ({len(pendientes)} en cola)\n\n"
+        nombre_usuario = f" (@{next_q.get('username')})" if next_q.get('username') else ''
+        texto += f"*De:* {next_q['usuario']}{nombre_usuario}\n"
+        texto += f"*Fecha:* {next_q['fecha']}\n\n"
+        texto += f"_{next_q['texto']}_"
+        
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            types.InlineKeyboardButton("✅ Atendida", callback_data=f"queja_atender_{next_idx}"),
+            types.InlineKeyboardButton("🗑️ Ignorar", callback_data=f"queja_ignorar_{next_idx}"),
+            types.InlineKeyboardButton("⏭️ Siguiente", callback_data=f"queja_saltar_{next_idx}")
+        )
+        
+        bot.edit_message_text(texto, chat_id=call.message.chat.id,
+            message_id=call.message.message_id, parse_mode='Markdown', reply_markup=markup)
+    else:
+        bot.edit_message_text("🎉 ¡Has liquidado todas las quejas! La paz reina... por ahora.",
+            chat_id=call.message.chat.id, message_id=call.message.message_id)
 
 @bot.message_handler(commands=['versugerencias'])
 def ver_sugerencias(message):
