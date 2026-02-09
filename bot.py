@@ -235,21 +235,33 @@ def sumar_puntos(user_id, nombre, puntos_ganados, username=None, intento=1):
     guardar_puntos(puntos)
     return calcular_puntos_semana(user_key)
 
-def calcular_puntos_semana(user_key):
-    """Calcula los puntos de la semana actual"""
+def calcular_puntos_semana(user_key, semana_anterior=False):
+    """Calcula los puntos de la semana actual o anterior (lun-dom)"""
     puntos = cargar_puntos()
     if user_key not in puntos:
         return 0
     
     hoy = datetime.now()
-    inicio_semana = hoy - timedelta(days=hoy.weekday())
-    inicio_semana = inicio_semana.replace(hour=0, minute=0, second=0, microsecond=0)
+    # Inicio de la semana actual (lunes a las 00:00)
+    inicio_semana_actual = hoy - timedelta(days=hoy.weekday())
+    inicio_semana_actual = inicio_semana_actual.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    if semana_anterior:
+        # Semana anterior: lunes pasado a domingo pasado
+        # Ej: si hoy es lunes 10, cuenta del lunes 3 al domingo 9
+        inicio_semana = inicio_semana_actual - timedelta(days=7)
+        fin_semana = inicio_semana_actual  # El lunes actual (no incluido)
+    else:
+        # Semana actual: desde el lunes de esta semana hasta hoy
+        inicio_semana = inicio_semana_actual
+        fin_semana = None
     
     total = 0
     for registro in puntos[user_key].get('historial', []):
         fecha = datetime.strptime(registro['fecha'], "%Y-%m-%d")
         if fecha >= inicio_semana:
-            total += registro['puntos']
+            if fin_semana is None or fecha < fin_semana:
+                total += registro['puntos']
     return total
 
 def calcular_puntos_mes(user_key):
@@ -269,14 +281,14 @@ def calcular_puntos_mes(user_key):
             total += registro['puntos']
     return total
 
-def obtener_ranking(periodo='semana'):
+def obtener_ranking(periodo='semana', semana_anterior=False):
     """Obtiene el ranking ordenado por periodo (semana o mes)"""
     puntos = cargar_puntos()
     ranking = []
     
     for user_key, data in puntos.items():
         if periodo == 'semana':
-            pts = calcular_puntos_semana(user_key)
+            pts = calcular_puntos_semana(user_key, semana_anterior=semana_anterior)
         else:
             pts = calcular_puntos_mes(user_key)
         
@@ -506,8 +518,8 @@ def enviar_mensaje():
 
 def enviar_resumen_semanal():
     """Envía el resumen del ranking semanal (lunes a las 8:00)"""
-    # Calcular ranking de la semana anterior
-    ranking = obtener_ranking('semana')
+    # Calcular ranking de la semana anterior (lun-dom pasado)
+    ranking = obtener_ranking('semana', semana_anterior=True)
     
     if not ranking:
         print("Resumen semanal: sin puntuaciones")
