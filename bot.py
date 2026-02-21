@@ -1513,8 +1513,7 @@ def perla_oscura(message):
     markup.add(btn_desactivar)
     
     bot.reply_to(message,
-        f"🌑 *PERLA OSCURA*\n\n_{perla}_",
-        parse_mode='Markdown',
+        f"🌑 PERLA OSCURA\n\n{perla}",
         reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('oscuro_'))
@@ -1535,19 +1534,17 @@ def handle_modo_oscuro(call):
         markup.add(btn_desactivar)
         
         bot.edit_message_text(
-            f"😈 *Modo oscuro activado*\n\n🌑 *Tu primera perla oscura:*\n\n_{perla}_",
+            f"😈 Modo oscuro activado\n\n🌑 Tu primera perla oscura:\n\n{perla}",
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
-            parse_mode='Markdown',
             reply_markup=markup)
         bot.answer_callback_query(call.id, "😈 Bienvenido al lado oscuro")
     
     elif accion == 'cancelar':
         bot.edit_message_text(
-            "😇 *Sabia decisión*\n\nLa ignorancia es felicidad... o eso dicen.",
+            "😇 Sabia decisión\n\nLa ignorancia es felicidad... o eso dicen.",
             chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            parse_mode='Markdown')
+            message_id=call.message.message_id)
         bot.answer_callback_query(call.id, "😇 Quizás otro día")
     
     elif accion == 'otra':
@@ -1559,12 +1556,11 @@ def handle_modo_oscuro(call):
         usos = obtener_usos_oscura(user_id)
         if usos >= 2:
             bot.edit_message_text(
-                "🌑 *Se acabó la oscuridad por hoy*\n\n"
+                "🌑 Se acabó la oscuridad por hoy\n\n"
                 "Ya has recibido tus 2 perlas oscuras diarias.\n\n"
-                "_Vuelve mañana para más cinismo reconfortante._",
+                "Vuelve mañana para más cinismo reconfortante.",
                 chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
-                parse_mode='Markdown')
+                message_id=call.message.message_id)
             bot.answer_callback_query(call.id, "😴 Límite alcanzado")
             return
         
@@ -1576,20 +1572,18 @@ def handle_modo_oscuro(call):
         markup.add(btn_desactivar)
         
         bot.edit_message_text(
-            f"🌑 *PERLA OSCURA* _(última del día)_\n\n_{perla}_",
+            f"🌑 PERLA OSCURA (última del día)\n\n{perla}",
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
-            parse_mode='Markdown',
             reply_markup=markup)
         bot.answer_callback_query(call.id, "🌑")
     
     elif accion == 'desactivar':
         toggle_modo_oscuro(user_id)
         bot.edit_message_text(
-            "😇 *Modo oscuro desactivado*\n\nHas vuelto a la luz. Bienvenido/a de vuelta.",
+            "😇 Modo oscuro desactivado\n\nHas vuelto a la luz. Bienvenido/a de vuelta.",
             chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            parse_mode='Markdown')
+            message_id=call.message.message_id)
         bot.answer_callback_query(call.id, "😇 Has vuelto a la luz")
 
 @bot.message_handler(commands=['resetpuntos'])
@@ -1978,7 +1972,7 @@ def ver_ranking(message):
     else:
         texto += "_Sin puntuaciones aún_\n"
     
-    bot.reply_to(message, texto, parse_mode='Markdown')
+    bot.reply_to(message, texto)
 
 @bot.message_handler(commands=['misestadisticas'])
 def ver_mis_estadisticas(message):
@@ -2010,10 +2004,10 @@ def ver_mis_estadisticas(message):
     dist_semana = None
     dist_mes = None
     if pos_semana and pos_semana > 1:
-        pts_anterior_semana = ranking_semana[pos_semana - 2][1]  # -2 porque pos es 1-indexed
+        pts_anterior_semana = ranking_semana[pos_semana - 2][3]  # índice 3 = puntos
         dist_semana = pts_anterior_semana - pts_semana
     if pos_mes and pos_mes > 1:
-        pts_anterior_mes = ranking_mes[pos_mes - 2][1]
+        pts_anterior_mes = ranking_mes[pos_mes - 2][3]  # índice 3 = puntos
         dist_mes = pts_anterior_mes - pts_mes
     
     pos_semana = pos_semana or '-'
