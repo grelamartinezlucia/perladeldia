@@ -1901,11 +1901,17 @@ def ver_mis_estadisticas(message):
     texto += f"🏆 *Puntos totales:* {pts_totales}\n"
     texto += f"📅 *Esta semana:* {pts_semana} pts (#{pos_semana})"
     if dist_semana is not None:
-        texto += f" - a {dist_semana} pts del #{pos_semana - 1}"
+        if dist_semana == 0:
+            texto += " - ¡empatado con el de arriba!"
+        else:
+            texto += f" - a {dist_semana} pts del #{pos_semana - 1}"
     texto += "\n"
     texto += f"📆 *Este mes:* {pts_mes} pts (#{pos_mes})"
     if dist_mes is not None:
-        texto += f" - a {dist_mes} pts del #{pos_mes - 1}"
+        if dist_mes == 0:
+            texto += " - ¡empatado con el de arriba!"
+        else:
+            texto += f" - a {dist_mes} pts del #{pos_mes - 1}"
     texto += "\n\n"
     texto += f"🎯 *Desafíos jugados:* {jugados}\n"
     texto += f"✅ *Aciertos a la 1ª:* {aciertos_1} ({pct_primera}%)\n"
