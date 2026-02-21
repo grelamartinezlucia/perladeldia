@@ -150,7 +150,10 @@ def obtener_todas_palabras():
 
 def obtener_todos_mitos():
     """Combina mitos de contenido.py + aprobados dinámicamente"""
-    return MITOS_DESMONTADOS + cargar_mitos_aprobados()
+    mitos_aprobados = cargar_mitos_aprobados()
+    # Filtrar solo los que tienen formato correcto (diccionario con 'mito' y 'realidad')
+    mitos_validos = [m for m in mitos_aprobados if isinstance(m, dict) and 'mito' in m and 'realidad' in m]
+    return MITOS_DESMONTADOS + mitos_validos
 
 def cargar_usuarios():
     """Carga el registro de usuarios"""
@@ -920,7 +923,8 @@ def handle_sugerir_categoria(call):
     # Guardar estado del usuario
     USUARIOS_SUGERENCIA[user_id] = {
         'categoria': categoria,
-        'chat_id': call.message.chat.id
+        'chat_id': call.message.chat.id,
+        'paso': 1  # Para mitos: paso 1 = mito, paso 2 = realidad
     }
     
     # Mensajes según categoría
@@ -928,19 +932,18 @@ def handle_sugerir_categoria(call):
         'refran': "Ejemplo: _Más vale pájaro en mano que ciento volando_",
         'palabra': "Ejemplo: _Petricor: Olor característico que produce la lluvia al caer sobre suelos secos_",
         'frase': "Ejemplo: _\"Eso lo arreglo yo con un par de bridas\" - Mi padre_",
-        'mito': "Ejemplo: _Mito: Los murciélagos son ciegos | Realidad: Tienen buena vista y además usan ecolocalización_"
+        'mito': "Escribe la *creencia falsa* (el mito):\n\nEjemplo: _Los murciélagos son ciegos_"
     }
     
     nombres = {
         'refran': '🎯 Refrán',
         'palabra': '📚 Palabra curiosa',
         'frase': '😂 Frase mítica',
-        'mito': '🔍 Mito desmontado'
+        'mito': '🔍 Mito desmontado (Paso 1/2)'
     }
     
     bot.edit_message_text(
         f"*{nombres[categoria]}*\n\n"
-        f"Escribe tu sugerencia a continuación:\n\n"
         f"{ejemplos[categoria]}",
         chat_id=call.message.chat.id,
         message_id=call.message.message_id,
@@ -964,6 +967,52 @@ def recibir_sugerencia(message):
         return
     
     usuario = message.from_user.first_name or "Anónimo"
+    
+    # Flujo especial para mitos (2 pasos)
+    if categoria == 'mito':
+        paso = estado.get('paso', 1)
+        
+        if paso == 1:
+            # Guardar el mito y pedir la realidad
+            USUARIOS_SUGERENCIA[user_id]['mito_texto'] = texto
+            USUARIOS_SUGERENCIA[user_id]['paso'] = 2
+            bot.reply_to(message, 
+                "✅ Mito guardado.\n\n"
+                "*Paso 2/2:* Ahora escribe la *realidad* (la explicación correcta):\n\n"
+                "Ejemplo: _Todos los murciélagos pueden ver. Algunos usan ecolocalización como complemento._",
+                parse_mode='Markdown')
+            return
+        
+        elif paso == 2:
+            # Crear el mito completo como diccionario
+            mito_texto = estado.get('mito_texto', '')
+            texto_completo = {'mito': mito_texto, 'realidad': texto}
+            guardar_sugerencia(user_id, message.chat.id, usuario, texto_completo, categoria)
+            
+            # Limpiar estado
+            del USUARIOS_SUGERENCIA[user_id]
+            
+            bot.reply_to(message, 
+                f"✅ ¡Gracias {usuario}!\n\n"
+                f"Tu *mito desmontado* ha sido guardado para revisión.\n"
+                f"Te notificaré cuando sea revisado.",
+                parse_mode='Markdown')
+            
+            # Notificar a la admin
+            try:
+                bot.send_message(CHAT_ID,
+                    f"📬 *Nueva sugerencia recibida*\n\n"
+                    f"*Categoría:* mito desmontado\n"
+                    f"*De:* {usuario}\n"
+                    f"*Mito:* _{mito_texto[:80]}{'...' if len(mito_texto) > 80 else ''}_\n"
+                    f"*Realidad:* _{texto[:80]}{'...' if len(texto) > 80 else ''}_\n\n"
+                    f"Usa /versugerencias para revisarla.",
+                    parse_mode='Markdown')
+            except:
+                pass
+            return
+    
+    # Flujo normal para otras categorías
     guardar_sugerencia(user_id, message.chat.id, usuario, texto, categoria)
     
     # Limpiar estado
@@ -1630,20 +1679,32 @@ def handle_sugerencia(call):
         sugerencias[idx]['estado'] = 'aprobada'
         guardar_sugerencias(sugerencias)
         
-        # Añadir a la lista según categoría (con marca de sugerencia)
+        # Añadir a la lista según categoría
         categoria = s.get('categoria', 'frase')
-        texto_con_marca = f"{s['texto']} (sugerido por {s['usuario']})"
+        texto_original = s['texto']
         
         if categoria == 'refran':
+            texto_con_marca = f"{texto_original} (sugerido por {s['usuario']})"
             guardar_refran_aprobado(texto_con_marca)
             tipo_texto = "los refranes"
         elif categoria == 'palabra':
+            texto_con_marca = f"{texto_original} (sugerido por {s['usuario']})"
             guardar_palabra_aprobada(texto_con_marca)
             tipo_texto = "las palabras curiosas"
         elif categoria == 'mito':
-            guardar_mito_aprobado(texto_con_marca)
+            # Los mitos son diccionarios {'mito': '...', 'realidad': '...'}
+            if isinstance(texto_original, dict):
+                mito_con_marca = {
+                    'mito': texto_original.get('mito', ''),
+                    'realidad': f"{texto_original.get('realidad', '')} (sugerido por {s['usuario']})"
+                }
+                guardar_mito_aprobado(mito_con_marca)
+            else:
+                # Mito antiguo en formato string - ignorar
+                pass
             tipo_texto = "los mitos desmontados"
         else:
+            texto_con_marca = f"{texto_original} (sugerido por {s['usuario']})"
             guardar_frase_aprobada(texto_con_marca)
             tipo_texto = "las frases míticas"
         
@@ -1651,8 +1712,13 @@ def handle_sugerencia(call):
         chat_id = s.get('chat_id')
         if chat_id:
             try:
+                # Formatear texto para notificación
+                if isinstance(texto_original, dict):
+                    texto_display = f"Mito: {texto_original.get('mito', '')}\nRealidad: {texto_original.get('realidad', '')}"
+                else:
+                    texto_display = str(texto_original)
                 bot.send_message(chat_id, 
-                    f"🎉 *¡Tu sugerencia fue aprobada!*\n\n_{s['texto']}_\n\n¡Ya está añadida a {tipo_texto} del bot! Gracias por contribuir 🙌",
+                    f"🎉 *¡Tu sugerencia fue aprobada!*\n\n_{texto_display}_\n\n¡Ya está añadida a {tipo_texto} del bot! Gracias por contribuir 🙌",
                     parse_mode='Markdown')
             except:
                 pass
