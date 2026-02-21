@@ -830,17 +830,25 @@ def send_now(message):
     # Intentar enviar ANTES de marcar como usado
     fecha = datetime.now().strftime("%Y-%m-%d")
     try:
+        mensaje = mensaje_diario(user_id)
+        markup = crear_botones_voto(fecha)
         bot.send_message(
             message.chat.id, 
-            mensaje_diario(user_id), 
+            mensaje, 
             parse_mode='Markdown',
-            reply_markup=crear_botones_voto(fecha)
+            reply_markup=markup
         )
         # Solo marcar como usado si el envío fue exitoso
         incrementar_usos_ahora(user_id)
     except Exception as e:
-        print(f"Error enviando perla a {user_id}: {e}")
-        bot.reply_to(message, "❌ Error al enviar la perla. Inténtalo de nuevo.")
+        print(f"[ERROR /ahora] user={user_id} error={e}")
+        # Reintentar sin Markdown por si es problema de formato
+        try:
+            bot.send_message(message.chat.id, mensaje, reply_markup=markup)
+            incrementar_usos_ahora(user_id)
+        except Exception as e2:
+            print(f"[ERROR /ahora retry] user={user_id} error={e2}")
+            bot.reply_to(message, f"❌ Error al enviar la perla: {str(e)[:100]}")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('voto_'))
 def handle_voto(call):
