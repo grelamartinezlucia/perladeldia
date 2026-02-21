@@ -1866,11 +1866,11 @@ def ver_mis_estadisticas(message):
     dist_semana = None
     dist_mes = None
     if pos_semana and pos_semana > 1:
-        pts_anterior = ranking_semana[pos_semana - 2][1]  # -2 porque pos es 1-indexed
-        dist_semana = pts_anterior - pts_semana
+        pts_anterior_semana = ranking_semana[pos_semana - 2][1]  # -2 porque pos es 1-indexed
+        dist_semana = pts_anterior_semana - pts_semana
     if pos_mes and pos_mes > 1:
-        pts_anterior = ranking_mes[pos_mes - 2][1]
-        dist_mes = pts_anterior - pts_mes
+        pts_anterior_mes = ranking_mes[pos_mes - 2][1]
+        dist_mes = pts_anterior_mes - pts_mes
     
     pos_semana = pos_semana or '-'
     pos_mes = pos_mes or '-'
@@ -1900,11 +1900,11 @@ def ver_mis_estadisticas(message):
     texto = f"📊 *ESTADÍSTICAS DE {nombre.upper()}*\n\n"
     texto += f"🏆 *Puntos totales:* {pts_totales}\n"
     texto += f"📅 *Esta semana:* {pts_semana} pts (#{pos_semana})"
-    if dist_semana:
+    if dist_semana is not None:
         texto += f" - a {dist_semana} pts del #{pos_semana - 1}"
     texto += "\n"
     texto += f"📆 *Este mes:* {pts_mes} pts (#{pos_mes})"
-    if dist_mes:
+    if dist_mes is not None:
         texto += f" - a {dist_mes} pts del #{pos_mes - 1}"
     texto += "\n\n"
     texto += f"🎯 *Desafíos jugados:* {jugados}\n"
