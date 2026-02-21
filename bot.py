@@ -1855,11 +1855,25 @@ def ver_mis_estadisticas(message):
     pts_semana = calcular_puntos_semana(user_id)
     pts_mes = calcular_puntos_mes(user_id)
     
-    # Posición en rankings
+    # Posición en rankings y distancia al siguiente
     ranking_semana = obtener_ranking('semana')
     ranking_mes = obtener_ranking('mes')
-    pos_semana = next((i+1 for i, r in enumerate(ranking_semana) if r[0] == user_id), '-')
-    pos_mes = next((i+1 for i, r in enumerate(ranking_mes) if r[0] == user_id), '-')
+    
+    pos_semana = next((i+1 for i, r in enumerate(ranking_semana) if r[0] == user_id), None)
+    pos_mes = next((i+1 for i, r in enumerate(ranking_mes) if r[0] == user_id), None)
+    
+    # Calcular distancia al siguiente (al que está por encima)
+    dist_semana = None
+    dist_mes = None
+    if pos_semana and pos_semana > 1:
+        pts_anterior = ranking_semana[pos_semana - 2][1]  # -2 porque pos es 1-indexed
+        dist_semana = pts_anterior - pts_semana
+    if pos_mes and pos_mes > 1:
+        pts_anterior = ranking_mes[pos_mes - 2][1]
+        dist_mes = pts_anterior - pts_mes
+    
+    pos_semana = pos_semana or '-'
+    pos_mes = pos_mes or '-'
     
     # Calcular estadísticas desde historial (fuente de verdad)
     aciertos_1 = sum(1 for r in historial if r['puntos'] == 3)
@@ -1885,8 +1899,14 @@ def ver_mis_estadisticas(message):
     # Construir mensaje
     texto = f"📊 *ESTADÍSTICAS DE {nombre.upper()}*\n\n"
     texto += f"🏆 *Puntos totales:* {pts_totales}\n"
-    texto += f"📅 *Esta semana:* {pts_semana} pts (#{pos_semana})\n"
-    texto += f"📆 *Este mes:* {pts_mes} pts (#{pos_mes})\n\n"
+    texto += f"📅 *Esta semana:* {pts_semana} pts (#{pos_semana})"
+    if dist_semana:
+        texto += f" - a {dist_semana} pts del #{pos_semana - 1}"
+    texto += "\n"
+    texto += f"📆 *Este mes:* {pts_mes} pts (#{pos_mes})"
+    if dist_mes:
+        texto += f" - a {dist_mes} pts del #{pos_mes - 1}"
+    texto += "\n\n"
     texto += f"🎯 *Desafíos jugados:* {jugados}\n"
     texto += f"✅ *Aciertos a la 1ª:* {aciertos_1} ({pct_primera}%)\n"
     texto += f"🔄 *Aciertos a la 2ª:* {aciertos_2} ({pct_segunda}%)\n\n"
