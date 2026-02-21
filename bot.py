@@ -827,14 +827,20 @@ def send_now(message):
         bot.reply_to(message, MENSAJES_LIMITE_AHORA[idx], parse_mode='Markdown')
         return
     
-    incrementar_usos_ahora(user_id)
+    # Intentar enviar ANTES de marcar como usado
     fecha = datetime.now().strftime("%Y-%m-%d")
-    bot.send_message(
-        message.chat.id, 
-        mensaje_diario(user_id), 
-        parse_mode='Markdown',
-        reply_markup=crear_botones_voto(fecha)
-    )
+    try:
+        bot.send_message(
+            message.chat.id, 
+            mensaje_diario(user_id), 
+            parse_mode='Markdown',
+            reply_markup=crear_botones_voto(fecha)
+        )
+        # Solo marcar como usado si el envío fue exitoso
+        incrementar_usos_ahora(user_id)
+    except Exception as e:
+        print(f"Error enviando perla a {user_id}: {e}")
+        bot.reply_to(message, "❌ Error al enviar la perla. Inténtalo de nuevo.")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('voto_'))
 def handle_voto(call):
@@ -1265,6 +1271,53 @@ def ver_sugerencias(message):
     markup.add(btn_saltar)
     
     bot.reply_to(message, texto, parse_mode='Markdown', reply_markup=markup)
+
+@bot.message_handler(commands=['resetperla'])
+def reset_perla_usuario(message):
+    """Resetea los usos de /ahora de un usuario (solo admin)"""
+    if str(message.chat.id) != str(CHAT_ID):
+        bot.reply_to(message, "⛔ Este comando es solo para administradores.")
+        return
+    
+    # Puede ser /resetperla (para ti mismo) o /resetperla @username o /resetperla user_id
+    args = message.text.replace('/resetperla', '', 1).strip()
+    
+    if not args:
+        # Resetear al propio admin
+        target_id = str(message.from_user.id)
+        target_name = "ti mismo"
+    else:
+        # Buscar usuario por username o ID
+        usuarios = cargar_usuarios()
+        target_id = None
+        target_name = args
+        
+        # Buscar por username
+        for uid, data in usuarios.items():
+            if data.get('username') and f"@{data['username']}" == args:
+                target_id = uid
+                target_name = data.get('nombre', args)
+                break
+        
+        # Si no encontró, probar como ID directo
+        if not target_id and args.isdigit():
+            target_id = args
+    
+    if not target_id:
+        bot.reply_to(message, f"❌ No encontré al usuario {args}")
+        return
+    
+    # Resetear usos
+    usos = storage.obtener_dict(REDIS_USOS_AHORA)
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    clave = f"{target_id}_{fecha_hoy}"
+    
+    if clave in usos:
+        del usos[clave]
+        storage.guardar_dict(REDIS_USOS_AHORA, usos)
+        bot.reply_to(message, f"✅ Reseteados los usos de /ahora para {target_name}. Ya puede pedir su perla.")
+    else:
+        bot.reply_to(message, f"ℹ️ {target_name} no tenía usos registrados hoy.")
 
 @bot.message_handler(commands=['altavoz'])
 def broadcast_mensaje(message):
@@ -2079,6 +2132,16 @@ def main():
     time.sleep(2)
     print("✅ Health server listo")
     
+    # Limpiar sesión de Telegram antes de conectar (evita error 409)
+    try:
+        import requests as req
+        TOKEN = os.environ.get('TOKEN')
+        req.get(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook")
+        req.get(f"https://api.telegram.org/bot{TOKEN}/getUpdates?offset=-1")
+        print("✅ Sesión de Telegram limpiada")
+    except Exception as e:
+        print(f"⚠️ No se pudo limpiar sesión: {e}")
+    
     # Verificar conexión con Telegram
     try:
         bot_info = bot.get_me()
@@ -2086,9 +2149,9 @@ def main():
     except Exception as e:
         print(f"❌ Error conectando a Telegram: {e}")
     
-    # Iniciar el bot
+    # Iniciar el bot con reintentos
     print("🔄 Iniciando polling...")
-    threading.Thread(target=bot.infinity_polling, daemon=True).start()
+    threading.Thread(target=lambda: bot.infinity_polling(timeout=60, long_polling_timeout=30), daemon=True).start()
     print("✅ Bot polling iniciado - ¡TODO OK!")
     
     # Ejecutar el schedule
