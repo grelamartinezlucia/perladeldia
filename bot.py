@@ -1802,6 +1802,7 @@ def ver_ranking(message):
     """Muestra el ranking semanal y mensual del desafío"""
     ranking_semana = obtener_ranking('semana')
     ranking_mes = obtener_ranking('mes')
+    user_id = str(message.from_user.id)
     
     if not ranking_semana and not ranking_mes:
         bot.reply_to(message, "📊 Aún no hay puntuaciones. ¡Usa /desafio para jugar!")
@@ -1811,26 +1812,42 @@ def ver_ranking(message):
     texto = "🏆 *RANKING DEL DESAFÍO*\n"
     texto += "_3 pts al primer intento, 1 pt al segundo_\n\n"
     
-    # Ranking semanal
+    # Ranking semanal (top 3 + posición del usuario si no está)
     texto += "📅 ESTA SEMANA:\n"
     if ranking_semana:
-        for i, (user_id, nombre, username, pts) in enumerate(ranking_semana[:5]):
-            medalla = medallas[i] if i < 3 else f"{i+1}."
-            nombre_display = f"{nombre} ({username})" if username else nombre
+        # Mostrar top 3
+        for i, (uid, nombre, username, pts) in enumerate(ranking_semana[:3]):
+            medalla = medallas[i]
+            nombre_display = f"{nombre} (@{username})" if username else nombre
             texto += f"{medalla} {nombre_display}: {pts} pts\n"
+        
+        # Si el usuario no está en top 3, mostrar su posición
+        pos_usuario = next((i+1 for i, r in enumerate(ranking_semana) if r[0] == user_id), None)
+        if pos_usuario and pos_usuario > 3:
+            uid, nombre, username, pts = ranking_semana[pos_usuario - 1]
+            nombre_display = f"{nombre} (@{username})" if username else nombre
+            texto += f"··········\n{pos_usuario}. {nombre_display}: {pts} pts _(tú)_\n"
     else:
         texto += "_Sin puntuaciones aún_\n"
     
-    # Ranking mensual
+    # Ranking mensual (top 3 + posición del usuario si no está)
     meses_es = {1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL', 5: 'MAYO', 6: 'JUNIO',
                 7: 'JULIO', 8: 'AGOSTO', 9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'}
     mes_nombre = meses_es[datetime.now().month]
     texto += f"\n📆 {mes_nombre}:\n"
     if ranking_mes:
-        for i, (user_id, nombre, username, pts) in enumerate(ranking_mes[:5]):
-            medalla = medallas[i] if i < 3 else f"{i+1}."
-            nombre_display = f"{nombre} ({username})" if username else nombre
+        # Mostrar top 3
+        for i, (uid, nombre, username, pts) in enumerate(ranking_mes[:3]):
+            medalla = medallas[i]
+            nombre_display = f"{nombre} (@{username})" if username else nombre
             texto += f"{medalla} {nombre_display}: {pts} pts\n"
+        
+        # Si el usuario no está en top 3, mostrar su posición
+        pos_usuario = next((i+1 for i, r in enumerate(ranking_mes) if r[0] == user_id), None)
+        if pos_usuario and pos_usuario > 3:
+            uid, nombre, username, pts = ranking_mes[pos_usuario - 1]
+            nombre_display = f"{nombre} (@{username})" if username else nombre
+            texto += f"··········\n{pos_usuario}. {nombre_display}: {pts} pts _(tú)_\n"
     else:
         texto += "_Sin puntuaciones aún_\n"
     
