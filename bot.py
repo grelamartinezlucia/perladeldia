@@ -1930,8 +1930,13 @@ def ver_ranking(message):
         return
     
     medallas = ['🥇', '🥈', '🥉']
-    texto = "🏆 *RANKING DEL DESAFÍO*\n"
-    texto += "_3 pts al primer intento, 1 pt al segundo_\n\n"
+    texto = "🏆 <b>RANKING DEL DESAFÍO</b>\n"
+    texto += "<i>3 pts al primer intento</i>\n"
+    texto += "<i>1 pt al segundo</i>\n\n"
+    
+    # Función para escapar HTML
+    def esc(text):
+        return str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
     
     # Ranking semanal (top 3 + posición del usuario si no está)
     texto += "📅 ESTA SEMANA:\n"
@@ -1939,17 +1944,17 @@ def ver_ranking(message):
         # Mostrar top 3
         for i, (uid, nombre, username, pts) in enumerate(ranking_semana[:3]):
             medalla = medallas[i]
-            nombre_display = f"{nombre} (@{username})" if username else nombre
+            nombre_display = f"{esc(nombre)} (@{esc(username)})" if username else esc(nombre)
             texto += f"{medalla} {nombre_display}: {pts} pts\n"
         
         # Si el usuario no está en top 3, mostrar su posición
         pos_usuario = next((i+1 for i, r in enumerate(ranking_semana) if r[0] == user_id), None)
         if pos_usuario and pos_usuario > 3:
             uid, nombre, username, pts = ranking_semana[pos_usuario - 1]
-            nombre_display = f"{nombre} (@{username})" if username else nombre
-            texto += f"··········\n{pos_usuario}. {nombre_display}: {pts} pts _(tú)_\n"
+            nombre_display = f"{esc(nombre)} (@{esc(username)})" if username else esc(nombre)
+            texto += f"··········\n{pos_usuario}. {nombre_display}: {pts} pts\n"
     else:
-        texto += "_Sin puntuaciones aún_\n"
+        texto += "Sin puntuaciones aún\n"
     
     # Ranking mensual (top 3 + posición del usuario si no está)
     meses_es = {1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL', 5: 'MAYO', 6: 'JUNIO',
@@ -1960,19 +1965,19 @@ def ver_ranking(message):
         # Mostrar top 3
         for i, (uid, nombre, username, pts) in enumerate(ranking_mes[:3]):
             medalla = medallas[i]
-            nombre_display = f"{nombre} (@{username})" if username else nombre
+            nombre_display = f"{esc(nombre)} (@{esc(username)})" if username else esc(nombre)
             texto += f"{medalla} {nombre_display}: {pts} pts\n"
         
         # Si el usuario no está en top 3, mostrar su posición
         pos_usuario = next((i+1 for i, r in enumerate(ranking_mes) if r[0] == user_id), None)
         if pos_usuario and pos_usuario > 3:
             uid, nombre, username, pts = ranking_mes[pos_usuario - 1]
-            nombre_display = f"{nombre} (@{username})" if username else nombre
-            texto += f"··········\n{pos_usuario}. {nombre_display}: {pts} pts _(tú)_\n"
+            nombre_display = f"{esc(nombre)} (@{esc(username)})" if username else esc(nombre)
+            texto += f"··········\n{pos_usuario}. {nombre_display}: {pts} pts\n"
     else:
-        texto += "_Sin puntuaciones aún_\n"
+        texto += "Sin puntuaciones aún\n"
     
-    bot.reply_to(message, texto)
+    bot.reply_to(message, texto, parse_mode='HTML')
 
 @bot.message_handler(commands=['misestadisticas'])
 def ver_mis_estadisticas(message):
