@@ -1135,11 +1135,11 @@ def ver_quejas(message):
     q = pendientes[0]
     idx = quejas.index(q)
     
-    texto = f"😤 *Queja pendiente* ({len(pendientes)} en cola)\n\n"
+    texto = f"😤 QUEJA PENDIENTE ({len(pendientes)} en cola)\n\n"
     nombre_usuario = f" (@{q.get('username')})" if q.get('username') else ''
-    texto += f"*De:* {q['usuario']}{nombre_usuario}\n"
-    texto += f"*Fecha:* {q['fecha']}\n\n"
-    texto += f"_{q['texto']}_"
+    texto += f"De: {q['usuario']}{nombre_usuario}\n"
+    texto += f"Fecha: {q['fecha']}\n\n"
+    texto += f"{q['texto']}"
     
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -1148,7 +1148,7 @@ def ver_quejas(message):
         types.InlineKeyboardButton("⏭️ Siguiente", callback_data=f"queja_saltar_{idx}")
     )
     
-    bot.reply_to(message, texto, parse_mode='Markdown', reply_markup=markup)
+    bot.reply_to(message, texto, reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('queja_') and call.data != 'queja_cancelar')
 def handle_queja_admin(call):
@@ -1177,11 +1177,11 @@ def handle_queja_admin(call):
         next_idx, next_q = pendientes[0]
         pendientes_count = len([qj for qj in quejas if qj.get('estado') == 'pendiente'])
         
-        texto = f"😤 *Queja pendiente* ({pendientes_count} en cola)\n\n"
+        texto = f"😤 QUEJA PENDIENTE ({pendientes_count} en cola)\n\n"
         nombre_usuario = f" (@{next_q.get('username')})" if next_q.get('username') else ''
-        texto += f"*De:* {next_q['usuario']}{nombre_usuario}\n"
-        texto += f"*Fecha:* {next_q['fecha']}\n\n"
-        texto += f"_{next_q['texto']}_"
+        texto += f"De: {next_q['usuario']}{nombre_usuario}\n"
+        texto += f"Fecha: {next_q['fecha']}\n\n"
+        texto += f"{next_q['texto']}"
         
         markup = types.InlineKeyboardMarkup(row_width=2)
         markup.add(
@@ -1191,7 +1191,7 @@ def handle_queja_admin(call):
         )
         
         bot.edit_message_text(texto, chat_id=call.message.chat.id, 
-            message_id=call.message.message_id, parse_mode='Markdown', reply_markup=markup)
+            message_id=call.message.message_id, reply_markup=markup)
         bot.answer_callback_query(call.id)
         return
     
@@ -1211,11 +1211,11 @@ def handle_queja_admin(call):
         next_q = pendientes[0]
         next_idx = quejas.index(next_q)
         
-        texto = f"😤 *Queja pendiente* ({len(pendientes)} en cola)\n\n"
+        texto = f"😤 QUEJA PENDIENTE ({len(pendientes)} en cola)\n\n"
         nombre_usuario = f" (@{next_q.get('username')})" if next_q.get('username') else ''
-        texto += f"*De:* {next_q['usuario']}{nombre_usuario}\n"
-        texto += f"*Fecha:* {next_q['fecha']}\n\n"
-        texto += f"_{next_q['texto']}_"
+        texto += f"De: {next_q['usuario']}{nombre_usuario}\n"
+        texto += f"Fecha: {next_q['fecha']}\n\n"
+        texto += f"{next_q['texto']}"
         
         markup = types.InlineKeyboardMarkup(row_width=2)
         markup.add(
@@ -1225,7 +1225,7 @@ def handle_queja_admin(call):
         )
         
         bot.edit_message_text(texto, chat_id=call.message.chat.id,
-            message_id=call.message.message_id, parse_mode='Markdown', reply_markup=markup)
+            message_id=call.message.message_id, reply_markup=markup)
     else:
         bot.edit_message_text("🎉 ¡Has liquidado todas las quejas! La paz reina... por ahora.",
             chat_id=call.message.chat.id, message_id=call.message.message_id)
