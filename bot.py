@@ -14,6 +14,14 @@ from horoscopo import obtener_horoscopo, listar_signos
 from contenido import PALABRAS_CURIOSAS, REFRANES, FRASES_AMIGOS, MITOS_DESMONTADOS, PERLAS_OSCURAS
 from efemerides import EFEMERIDES
 import storage
+import pytz
+
+# Timezone de España
+TIMEZONE_SPAIN = pytz.timezone('Europe/Madrid')
+
+def hora_spain():
+    """Devuelve la hora actual en España"""
+    return datetime.now(TIMEZONE_SPAIN)
 
 # Tu token del BotFather
 TOKEN = os.environ.get('TOKEN')
@@ -650,25 +658,12 @@ def enviar_resumen_mensual():
     
     print(f"Resumen mensual enviado a {enviados} usuarios - {datetime.now()}")
 
-# Programar envío diario a las 9:00 AM
-schedule.every().day.at("09:00").do(enviar_mensaje)
-
-# Resumen semanal: lunes a las 9:00 (junto con la perla)
-schedule.every().monday.at("09:00").do(enviar_resumen_semanal)
-
-# Resumen mensual: día 1 a las 9:00 (se verifica dentro de la función)
-def check_resumen_mensual():
-    if datetime.now().day == 1:
-        enviar_resumen_mensual()
-
-schedule.every().day.at("09:00").do(check_resumen_mensual)
-
 # Recordatorio del desafío a las 20:00 (11h después de la perla)
 def enviar_recordatorio_desafio():
     """Recuerda a los usuarios que no han jugado el desafío hoy"""
     usuarios = cargar_usuarios()
     usos_desafio = storage.obtener_dict(REDIS_USOS_DESAFIO)
-    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    fecha_hoy = hora_spain().strftime("%Y-%m-%d")
     
     mensajes_recordatorio = [
         "🎯 ¡Ey! Hoy no has jugado al /desafio. Estás regalando puntos del ranking. ¿Seguro que quieres que otros te adelanten?",
@@ -689,7 +684,7 @@ def enviar_recordatorio_desafio():
     ]
     
     # Elegir mensaje según día del año
-    dia_año = datetime.now().timetuple().tm_yday
+    dia_año = hora_spain().timetuple().tm_yday
     mensaje = mensajes_recordatorio[dia_año % len(mensajes_recordatorio)]
     
     enviados = 0
@@ -709,9 +704,50 @@ def enviar_recordatorio_desafio():
         except:
             pass
     
-    print(f"Recordatorio desafío enviado a {enviados} usuarios - {datetime.now()}")
+    print(f"Recordatorio desafío enviado a {enviados} usuarios - {hora_spain()}")
 
-schedule.every().day.at("20:00").do(enviar_recordatorio_desafio)
+# === TAREAS PROGRAMADAS CON HORA ESPAÑOLA ===
+# Control para evitar ejecuciones duplicadas
+TAREAS_EJECUTADAS = {}
+
+def ejecutar_tareas_programadas():
+    """Verifica y ejecuta tareas según hora española"""
+    global TAREAS_EJECUTADAS
+    ahora = hora_spain()
+    hora_actual = ahora.strftime("%H:%M")
+    fecha_hoy = ahora.strftime("%Y-%m-%d")
+    dia_semana = ahora.weekday()  # 0=lunes
+    dia_mes = ahora.day
+    
+    # Limpiar tareas de días anteriores
+    TAREAS_EJECUTADAS = {k: v for k, v in TAREAS_EJECUTADAS.items() if v == fecha_hoy}
+    
+    # 10:00 - Perla diaria
+    if hora_actual == "10:00" and "perla" not in TAREAS_EJECUTADAS:
+        print(f"[{ahora}] Ejecutando perla diaria...")
+        enviar_mensaje()
+        TAREAS_EJECUTADAS["perla"] = fecha_hoy
+        
+        # Resumen semanal (lunes)
+        if dia_semana == 0 and "semanal" not in TAREAS_EJECUTADAS:
+            print(f"[{ahora}] Ejecutando resumen semanal...")
+            enviar_resumen_semanal()
+            TAREAS_EJECUTADAS["semanal"] = fecha_hoy
+        
+        # Resumen mensual (día 1)
+        if dia_mes == 1 and "mensual" not in TAREAS_EJECUTADAS:
+            print(f"[{ahora}] Ejecutando resumen mensual...")
+            enviar_resumen_mensual()
+            TAREAS_EJECUTADAS["mensual"] = fecha_hoy
+    
+    # 20:00 - Recordatorio del desafío
+    if hora_actual == "20:00" and "recordatorio" not in TAREAS_EJECUTADAS:
+        print(f"[{ahora}] Ejecutando recordatorio desafío...")
+        enviar_recordatorio_desafio()
+        TAREAS_EJECUTADAS["recordatorio"] = fecha_hoy
+
+# Ejecutar verificación cada minuto
+schedule.every(1).minutes.do(ejecutar_tareas_programadas)
 
 @bot.message_handler(commands=['start', 'hola'])
 def send_welcome(message):
