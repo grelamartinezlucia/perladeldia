@@ -1849,11 +1849,15 @@ def enviar_desafio(message):
     # NO marcamos aquí - se marca al primer intento en el callback
     palabra, opciones, indice_correcto = generar_quiz()
     
+    # Escapar HTML en opciones
+    def esc(text):
+        return str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    
     letras = ['A', 'B', 'C', 'D']
-    texto = f"🧠 *DESAFÍO: ¿Qué significa...*\n\n📝 *{palabra}*?\n"
+    texto = f"🧠 <b>DESAFÍO: ¿Qué significa...</b>\n\n📝 <b>{esc(palabra)}</b>?\n"
     
     for i, opcion in enumerate(opciones):
-        texto += f"\n{letras[i]}) {opcion}"
+        texto += f"\n{letras[i]}) {esc(opcion)}"
     
     markup = types.InlineKeyboardMarkup(row_width=4)
     botones = [
@@ -1862,7 +1866,7 @@ def enviar_desafio(message):
     ]
     markup.add(*botones)
     
-    bot.send_message(message.chat.id, texto, parse_mode='Markdown', reply_markup=markup)
+    bot.send_message(message.chat.id, texto, parse_mode='HTML', reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('desafio_'))
 def handle_desafio(call):
@@ -2222,9 +2226,21 @@ def main():
     except Exception as e:
         print(f"❌ Error conectando a Telegram: {e}")
     
-    # Iniciar el bot con reintentos
+    # Iniciar el bot con reintentos más robustos
     print("🔄 Iniciando polling...")
-    threading.Thread(target=lambda: bot.infinity_polling(timeout=60, long_polling_timeout=30), daemon=True).start()
+    def polling_con_reintentos():
+        while True:
+            try:
+                bot.infinity_polling(
+                    timeout=60, 
+                    long_polling_timeout=30,
+                    allowed_updates=None
+                )
+            except Exception as e:
+                print(f"⚠️ Error en polling, reintentando en 5s: {e}")
+                time.sleep(5)
+    
+    threading.Thread(target=polling_con_reintentos, daemon=True).start()
     print("✅ Bot polling iniciado - ¡TODO OK!")
     
     # Ejecutar el schedule
