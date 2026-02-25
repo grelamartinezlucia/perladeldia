@@ -19,6 +19,9 @@ Bot de Telegram que envía contenido diario: palabras curiosas, refranes, frases
 | `/michat` | Muestra tu Chat ID |
 | `/resetpuntos` | (Admin) Resetea el ranking de puntos |
 | `/altavoz [msg]` | (Admin) Envía un mensaje a todos los usuarios |
+| `/mitosusados` | (Admin) Ver mitos ya mostrados |
+| `/marcarmitos [n]` | (Admin) Marcar n mitos como usados |
+| `/resetmitos` | (Admin) Reiniciar lista de mitos usados |
 | `/perlaoscura` | Perlas irónicas y cínicas (requiere activar modo oscuro) |
 
 ---

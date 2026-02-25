@@ -458,11 +458,46 @@ def obtener_dia_internacional():
     return DIAS_INTERNACIONALES.get((hoy.month, hoy.day), None)
 
 def obtener_mito_diario():
-    """Obtiene el mito del día (el mismo para todos los usuarios)"""
-    hoy = datetime.now()
+    """Obtiene el mito del día sin repetir hasta agotar todos"""
+    estado = cargar_estado()
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    
+    # Si ya tenemos mito para hoy, devolverlo
+    if estado.get('mito_fecha') == fecha_hoy and 'mito_actual' in estado:
+        return estado['mito_actual']
+    
+    # Obtener nuevo mito sin repetir
     todos_mitos = obtener_todos_mitos()
-    indice = (hoy.year * 1000 + hoy.timetuple().tm_yday) % len(todos_mitos)
-    return todos_mitos[indice]
+    mitos_usados = estado.get('mitos_usados', [])
+    
+    # Convertir mitos a strings para comparación (los dicts no son hashables)
+    def mito_a_key(m):
+        if isinstance(m, dict):
+            return f"{m.get('mito', '')}|{m.get('realidad', '')}"
+        return str(m)
+    
+    usados_keys = set(mitos_usados)
+    disponibles = [m for m in todos_mitos if mito_a_key(m) not in usados_keys]
+    
+    # Si no hay disponibles, reiniciar
+    if not disponibles:
+        mitos_usados = []
+        disponibles = todos_mitos.copy()
+    
+    # Elegir uno aleatorio con semilla del día (mismo para todos)
+    import hashlib
+    semilla = int(hashlib.md5(fecha_hoy.encode()).hexdigest(), 16) % (2**32)
+    rng = random.Random(semilla)
+    mito = rng.choice(disponibles)
+    
+    # Guardar estado
+    mitos_usados.append(mito_a_key(mito))
+    estado['mitos_usados'] = mitos_usados
+    estado['mito_fecha'] = fecha_hoy
+    estado['mito_actual'] = mito
+    guardar_estado(estado)
+    
+    return mito
 
 def mensaje_diario(user_id=None):
     """Genera el mensaje del día (personalizado por usuario si se proporciona user_id)"""
@@ -2152,6 +2187,85 @@ def escapar_markdown(texto):
     for c in caracteres:
         texto = texto.replace(c, f'\\{c}')
     return texto
+
+@bot.message_handler(commands=['mitosusados'])
+def ver_mitos_usados(message):
+    """Muestra los mitos ya usados (admin)"""
+    if str(message.from_user.id) != ADMIN_ID:
+        return
+    
+    estado = cargar_estado()
+    mitos_usados = estado.get('mitos_usados', [])
+    todos_mitos = obtener_todos_mitos()
+    
+    texto = f"📊 MITOS USADOS: {len(mitos_usados)}/{len(todos_mitos)}\n\n"
+    
+    if mitos_usados:
+        for i, key in enumerate(mitos_usados[-10:], 1):  # Últimos 10
+            texto += f"{i}. {key[:50]}...\n"
+        if len(mitos_usados) > 10:
+            texto += f"\n...y {len(mitos_usados) - 10} más"
+    else:
+        texto += "Ninguno aún"
+    
+    texto += f"\n\n💡 Para marcar mitos como usados, usa:\n/marcarmitos [cantidad]"
+    
+    bot.reply_to(message, texto)
+
+@bot.message_handler(commands=['marcarmitos'])
+def marcar_mitos_usados(message):
+    """Marca X mitos como usados (admin)"""
+    if str(message.from_user.id) != ADMIN_ID:
+        return
+    
+    try:
+        partes = message.text.split()
+        cantidad = int(partes[1]) if len(partes) > 1 else 0
+        
+        if cantidad <= 0:
+            bot.reply_to(message, "Uso: /marcarmitos [cantidad]\nEj: /marcarmitos 5")
+            return
+        
+        estado = cargar_estado()
+        todos_mitos = obtener_todos_mitos()
+        mitos_usados = estado.get('mitos_usados', [])
+        
+        def mito_a_key(m):
+            if isinstance(m, dict):
+                return f"{m.get('mito', '')}|{m.get('realidad', '')}"
+            return str(m)
+        
+        usados_keys = set(mitos_usados)
+        disponibles = [m for m in todos_mitos if mito_a_key(m) not in usados_keys]
+        
+        # Marcar los primeros X como usados
+        marcados = 0
+        for mito in disponibles[:cantidad]:
+            mitos_usados.append(mito_a_key(mito))
+            marcados += 1
+        
+        estado['mitos_usados'] = mitos_usados
+        guardar_estado(estado)
+        
+        bot.reply_to(message, f"✅ Marcados {marcados} mitos como usados.\nTotal usados: {len(mitos_usados)}/{len(todos_mitos)}")
+    except Exception as e:
+        bot.reply_to(message, f"❌ Error: {e}")
+
+@bot.message_handler(commands=['resetmitos'])
+def reset_mitos_usados(message):
+    """Reinicia la lista de mitos usados (admin)"""
+    if str(message.from_user.id) != ADMIN_ID:
+        return
+    
+    estado = cargar_estado()
+    estado['mitos_usados'] = []
+    if 'mito_fecha' in estado:
+        del estado['mito_fecha']
+    if 'mito_actual' in estado:
+        del estado['mito_actual']
+    guardar_estado(estado)
+    
+    bot.reply_to(message, "✅ Lista de mitos usados reiniciada")
 
 @bot.message_handler(commands=['usuarios'])
 def ver_usuarios(message):
