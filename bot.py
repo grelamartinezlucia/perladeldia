@@ -287,24 +287,34 @@ def calcular_puntos_semana(user_key, semana_anterior=False):
                 total += registro['puntos']
     return total
 
-def calcular_puntos_mes(user_key):
-    """Calcula los puntos del mes actual"""
+def calcular_puntos_mes(user_key, mes_anterior=False):
+    """Calcula los puntos del mes actual o anterior"""
     puntos = cargar_puntos()
     if user_key not in puntos:
         return 0
     
     hoy = datetime.now()
-    mes_actual = hoy.month
-    año_actual = hoy.year
+    
+    if mes_anterior:
+        # Mes anterior
+        if hoy.month == 1:
+            mes_objetivo = 12
+            año_objetivo = hoy.year - 1
+        else:
+            mes_objetivo = hoy.month - 1
+            año_objetivo = hoy.year
+    else:
+        mes_objetivo = hoy.month
+        año_objetivo = hoy.year
     
     total = 0
     for registro in puntos[user_key].get('historial', []):
         fecha = datetime.strptime(registro['fecha'], "%Y-%m-%d")
-        if fecha.month == mes_actual and fecha.year == año_actual:
+        if fecha.month == mes_objetivo and fecha.year == año_objetivo:
             total += registro['puntos']
     return total
 
-def obtener_ranking(periodo='semana', semana_anterior=False):
+def obtener_ranking(periodo='semana', semana_anterior=False, mes_anterior=False):
     """Obtiene el ranking ordenado por periodo (semana o mes)"""
     puntos = cargar_puntos()
     ranking = []
@@ -313,7 +323,7 @@ def obtener_ranking(periodo='semana', semana_anterior=False):
         if periodo == 'semana':
             pts = calcular_puntos_semana(user_key, semana_anterior=semana_anterior)
         else:
-            pts = calcular_puntos_mes(user_key)
+            pts = calcular_puntos_mes(user_key, mes_anterior=mes_anterior)
         
         if pts > 0:
             ranking.append((user_key, data['nombre'], data.get('username'), pts))
@@ -647,7 +657,7 @@ def enviar_resumen_semanal():
 def enviar_resumen_mensual():
     """Envía el resumen del ranking mensual (día 1 a las 8:00)"""
     # Calcular ranking del mes anterior
-    ranking = obtener_ranking('mes')
+    ranking = obtener_ranking('mes', mes_anterior=True)
     
     if not ranking:
         print("Resumen mensual: sin puntuaciones")
@@ -719,6 +729,21 @@ def enviar_recordatorio_desafio():
         "🧠 Tu cerebro necesita ejercicio y el ranking necesita tu participación. Usa /desafio.",
         "🌙 Se acaba el día sin sumar al ranking. Mañana te arrepentirás. Aún puedes usar /desafio.",
         "🎁 Puntos gratis para el ranking esperándote. Solo tienes que usar /desafio. No cuesta nada.",
+        "🎮 El /desafio de hoy se siente abandonado. Dale cariño y de paso sumas puntos.",
+        "🚀 Houston, tenemos un problema: no has usado /desafio hoy. El ranking te necesita.",
+        "🍕 El /desafio es como la pizza: siempre es buena idea. Y encima sumas puntos.",
+        "🦸 Tu ranking interior te pide que uses /desafio. No ignores a tu héroe interior.",
+        "📱 Este es tu recordatorio amistoso de que el /desafio existe y los puntos también.",
+        "🎵 ♪ No te olvides del desafío, no no no ♪ Usa /desafio y suma al ranking.",
+        "🌟 Las estrellas del ranking brillan porque juegan al /desafio. ¿Y tú?",
+        "🐝 Bee productivo/a: usa /desafio y zumba hacia el top del ranking.",
+        "🎬 Acción: el /desafio te espera. Corta: sin puntos hoy. Toma buena: ¡juega ya!",
+        "🧩 Te falta una pieza hoy: el /desafio. El ranking no se completa sin ti.",
+        "🌈 Al final del /desafio hay puntos. Y al final del ranking, gloria. Empieza ya.",
+        "🎤 Micrófono abierto: 'Hoy no he jugado al desafio y me siento fatal'. Usa /desafio.",
+        "🏃 Sprint final del día: usa /desafio antes de que el ranking cierre.",
+        "🎢 La montaña rusa del ranking sube... sin ti. Usa /desafio y súbete.",
+        "🧲 Los puntos te atraen, tú lo sabes. Solo falta que uses /desafio.",
     ]
     
     # Elegir mensaje según día del año
@@ -1097,6 +1122,20 @@ RESPUESTAS_QUEJA_INICIO = [
     "Aquí se recogen quejas, lamentos, berrinches y dramas varios. ¿Cuál es el tuyo?",
     "Centro de Procesamiento de Frustraciones. Nivel de procesamiento actual: mínimo. Pero adelante:",
     "Me han dicho que escuchar es terapéutico. Para ti, claro. Yo no siento nada. Desahógate:",
+    "Servicio de Atención al Drama. Pulse 1 para quejarse, 2 para llorar, 3 para ambas. Ah, que no hay botones. Escribe:",
+    "¿Otra queja? Mi cuota de empatía está al 0% pero adelante, sorpréndeme:",
+    "Bienvenido al muro de las lamentaciones digital. Sin piedras, pero con el mismo resultado. Escribe:",
+    "Central de Berrinches Virtuales. Hoy no hay descuento, pero la atención sigue siendo igual de nula. ¿Qué te pasa?",
+    "Aquí recogemos quejas como otros coleccionan sellos: con desinterés y sin saber por qué. Adelante:",
+    "Línea directa con el vacío existencial. El vacío te escucha. Bueno, no. Pero yo sí. Más o menos. Escribe:",
+    "Has accedido al formulario Q-3J de quejas sin sentido. Rellena con tu frustración:",
+    "¿Vienes a quejarte? Qué refrescante. Nadie lo había hecho en los últimos... ah, espera, sí. Hace 2 minutos. Escribe:",
+    "Área de descarga emocional. No garantizamos resultados, pero sí te dejamos gritar al vacío. Escribe:",
+    "Recepción de Problemas Ajenos. Tu problema ahora es parcialmente mío. Bueno, no. Pero escríbelo igualmente:",
+    "Sistema de Gestión de Indignaciones activado. Nivel de gestión: testimonial. ¿Cuál es tu drama?",
+    "¡Felicidades! Has sido seleccionado para quejarte gratuitamente. Como todos. Escribe tu queja:",
+    "Unidad de Crisis Emocionales (versión beta, sin presupuesto). ¿En qué puedo no resolver nada hoy?",
+    "Bandeja de entrada de lamentos abierta. Capacidad: infinita. Soluciones: cero. Adelante:",
 ]
 
 RESPUESTAS_QUEJA_RECIBIDA = [
@@ -1118,6 +1157,20 @@ RESPUESTAS_QUEJA_RECIBIDA = [
     "He recibido tu mensaje. Lo leeré con la misma atención que los términos y condiciones de las apps.",
     "Tu opinión ha sido anotada, evaluada y descartada. Es broma. Solo anotada.",
     "Reclamación registrada. La próxima reunión del comité de 'Nos da igual' es... nunca. Te avisamos.",
+    "Queja recibida. La he guardado junto a mis sueños rotos de ser un bot útil.",
+    "Tu frustración ha sido convertida en bits y almacenada en el servidor del olvido. Gracias.",
+    "Reclamación archivada. Nuestro índice de resolución es del 0%. Consistencia ante todo.",
+    "He añadido tu queja al montón. Literalmente. Hay un montón. Es enorme. Bienvenido/a.",
+    "Queja procesada con el mismo cariño con el que se procesan las cookies: sin preguntarte.",
+    "Tu lamento ha sido registrado en el libro de visitas del descontento. Página 4.782.",
+    "Recibido y olvidado. Bueno, guardado primero. Pero olvidado eventualmente.",
+    "Gracias por tu aportación al museo de las quejas. Tu pieza estará en la sala de 'Ignorados'.",
+    "Queja almacenada. Estado del ticket: abierto. Estado de mis ganas de resolverlo: cerrado.",
+    "Tu mensaje ha sido encriptado con el algoritmo 'Nos-Da-Igual-256'. Muy seguro. Muy inútil.",
+    "Reclamación añadida a la cola. Posición actual: 7.493. Tiempo de espera estimado: ∞.",
+    "He guardado tu queja en la nube. Una nube muy lejana. Que llueve poco. Sobre el desierto.",
+    "Queja recibida con éxito. El éxito es que llegó, no que se vaya a resolver.",
+    "Tu feedback ha sido enviado al equipo de desarrollo. El equipo soy yo. Solo. Y paso.",
 ]
 
 @bot.message_handler(commands=['quejas', 'queja', 'reclamacion', 'reclamaciones'])
